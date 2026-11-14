@@ -398,8 +398,11 @@ pre.code{background:var(--surface-2);border:1px solid var(--line);border-radius:
   #fontDown,#fontUp{display:none}
   .searchbox kbd{display:none}
   .searchbox input{padding-right:12px}
+  .brand{flex-shrink:0;flex:1;min-width:0}
   .brand b{font-size:.85rem}
   .brand .txt small{display:none}
+  .searchbox{display:none}
+  .author-bar{display:none}
   .row2{grid-template-columns:1fr}
   .today .dd{font-size:2.6rem}
   .author-card{grid-template-columns:1fr}
@@ -1161,7 +1164,7 @@ kbd{display:inline-block;min-width:1.6em;padding:1px 6px;border:1px solid var(--
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg><span class="lbl">Lấy tin mới</span>
     </button>
   </div>
-  <div style="width:100%;text-align:center;padding:3px 0;font-size:.78rem;background:var(--seal);color:#fff;letter-spacing:.3px">Tác giả: <b>Ngô Hoàng Thùy Hương</b> — SĐT/Zalo: <a href="tel:0328878297" style="color:#ffd54f;text-decoration:none">0328.878.297</a></div>
+  <div class="author-bar" style="text-align:center;padding:3px 0;font-size:.78rem;background:var(--seal);color:#fff;letter-spacing:.3px">Tác giả: <b>Ngô Hoàng Thùy Hương</b> — SĐT/Zalo: <a href="tel:0328878297" style="color:#ffd54f;text-decoration:none">0328.878.297</a></div>
 </header>
 
 <div class="shell">
