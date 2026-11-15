@@ -2349,8 +2349,10 @@ function renderHome(main){
   </div>`;
 
   const sc = $('#stubs'); const nowEl = $('#stubNow');
-  const scrollNow = () => { if(sc && nowEl) sc.scrollTo({left: Math.max(0, nowEl.offsetLeft - 320), behavior:'smooth'}); };
-  if(sc && nowEl) requestAnimationFrame(() => { sc.scrollLeft = Math.max(0, nowEl.offsetLeft - 320); });
+  const prevEl = nowEl && nowEl.previousElementSibling;
+  const snapLeft = prevEl ? Math.max(0, prevEl.offsetLeft - 20) : Math.max(0, nowEl.offsetLeft - 20);
+  const scrollNow = () => { if(sc && nowEl) sc.scrollTo({left: snapLeft, behavior:'smooth'}); };
+  if(sc && nowEl) requestAnimationFrame(() => { sc.scrollLeft = snapLeft; });
   const btnNow = $('#tlToNow', main); if(btnNow) btnNow.addEventListener('click', scrollNow);
   $$('.kpi-card[data-nav]', main).forEach(c => c.addEventListener('click', () => { const [p, q] = c.dataset.nav.split('?'); go(p, q ? Object.fromEntries(new URLSearchParams(q)) : undefined); }));
   $$('.tl-bar .pt', main).forEach(b => b.addEventListener('click', () => { const el = $('#stub' + b.dataset.stub); if(!el) return; sc.scrollTo({left: el.offsetLeft - 20, behavior:'smooth'}); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); }));
