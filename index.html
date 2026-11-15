@@ -4399,6 +4399,90 @@ function init(){
    ========================================================= */
 const RUIRO_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzU4ik70fAYTWXz7xceFaSQyXzXXlyNYpQUUItWNjXzKEj5w4iNoLUxQy1FsaLp8aRM/exec';
 const RUIRO_SHEET_ID = '1tTTs5ztUBfv0q8bwNCnmfOxW16sakynzpsOmXClfnAs';
+const RUIRO_DATA_URL = 'ruiro/ds.json';
+let RUIRO_STATIC = null;
+function rrLoadStatic() {
+  if(RUIRO_STATIC) return Promise.resolve(RUIRO_STATIC);
+  return fetch(RUIRO_DATA_URL).then(r => { if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => {
+    RUIRO_STATIC = (d && Array.isArray(d.vanban)) ? d : {vanban:[], hoadon:[], missing:[]};
+    return RUIRO_STATIC;
+  }).catch(() => { RUIRO_STATIC = {vanban:[], hoadon:[], missing:[]}; return RUIRO_STATIC; });
+}
+function rrMatch(q, blob) {
+  const qu = String(q || '').trim().toUpperCase();
+  if(!qu) return false;
+  const s = String(blob || '').toUpperCase();
+  const compact = qu.replace(/[\s.\-]/g, '');
+  const digits = compact.replace(/\D/g, '');
+  if(digits && digits.length === compact.length) {
+    if(digits.length < 4) return false;
+    const alt = digits.replace(/^0+/, '');
+    return s.includes(digits) || (!!alt && s.includes(alt));
+  }
+  if(qu.length < 2) return false;
+  return s.includes(qu);
+}
+function rrMerge(a, b, keyFn) {
+  const seen = new Set();
+  const out = [];
+  [...(a || []), ...(b || [])].forEach(x => {
+    const k = keyFn(x);
+    if(seen.has(k)) return;
+    seen.add(k);
+    out.push(x);
+  });
+  return out;
+}
+function rrCollect(q) {
+  const data = RUIRO_STATIC || {vanban:[], hoadon:[]};
+  const db = rrLocalDB();
+  const vb = (data.vanban || []).filter(v => rrMatch(q, [v.so_van_ban, v.mst_dn, v.ten_dn, v.don_vi_ban_hanh, v.don_vi, v.trich_yeu].join('|')));
+  const hd = (data.hoadon || []).filter(h => rrMatch(q, [h.ky_hieu_hd, h.so_hoa_don, h.mst_ban, h.ten_ban, h.mst_mua, h.ten_mua].join('|')));
+  const vbLocal = db.vanban.filter(v => rrMatch(q, [v.so_van_ban, v.mst_dn, v.ten_dn, v.don_vi, v.don_vi_ban_hanh, v.trich_yeu].join('|')));
+  const hdLocal = db.hoadon.filter(h => rrMatch(q, [h.ky_hieu_hd, h.so_hoa_don, h.mst_ban, h.ten_ban, h.mst_mua, h.ten_mua].join('|')));
+  return {
+    vanban: rrMerge(vb, vbLocal, v => (v.so_van_ban || '') + '|' + (v.mst_dn || '')),
+    hoadon: rrMerge(hd, hdLocal, h => (h.ma_vb || '') + '|' + (h.mst_ban || '') + '|' + (h.so_hoa_don || '') + '|' + (h.mst_mua || ''))
+  };
+}
+function rrSrcHtml(d) {
+  const n = ((d && d.vanban) || []).length;
+  if(!n) return 'Chưa tải được danh sách công khai.';
+  return 'Danh sách công khai: <b>' + n.toLocaleString('vi-VN') + '</b> doanh nghiệp. Nguồn <a href="https://www.meinvoice.vn/tin-tuc/19785/doanh-nghiep-rui-ro-ve-hoa-don/" target="_blank" rel="noopener">MeInvoice</a>, cập nhật đến 09/10/2026. Bản gốc công văn 4884/ĐT-QLDN2 nằm trên site.';
+}
+function rrDocGroups() {
+  const map = new Map();
+  ((RUIRO_STATIC && RUIRO_STATIC.vanban) || []).forEach(v => {
+    const k = v.so_van_ban || '';
+    const trich = (v.trich_yeu || '').length > 140 ? 'Doanh nghiệp có trong danh sách công khai của văn bản này.' : (v.trich_yeu || '');
+    if(!map.has(k)) map.set(k, {so:k, cq:v.don_vi_ban_hanh || '', ngay:v.ngay_ban_hanh || '', trich:trich, link:v.link_pdf || '', n:0});
+    const g = map.get(k);
+    g.n++;
+    if(v.link_pdf && (!g.link || v.link_pdf.indexOf('ruiro/') === 0)) g.link = v.link_pdf;
+  });
+  return [...map.values()];
+}
+function rrStaticListHtml() {
+  const groups = rrDocGroups();
+  if(!groups.length) return '';
+  const total = (RUIRO_STATIC.vanban || []).length;
+  let html = '<div style="margin-bottom:16px"><h3 style="margin:0 0 8px;font-size:1.1rem">📂 Danh sách công khai — ' + groups.length + ' văn bản, ' + total.toLocaleString('vi-VN') + ' doanh nghiệp</h3>';
+  html += '<p style="font-size:.85rem;color:#666;margin:0 0 10px">Nguồn <a href="https://www.meinvoice.vn/tin-tuc/19785/doanh-nghiep-rui-ro-ve-hoa-don/" target="_blank" rel="noopener">MeInvoice</a>. Bấm tên văn bản ở ô tra cứu, hoặc mở file gốc.</p>';
+  html += '<div style="display:flex;flex-direction:column;gap:8px">';
+  groups.forEach(g => {
+    html += '<div style="background:var(--card);border:1px solid var(--brd);border-radius:10px;padding:12px">'
+      + '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>' + esc(g.so) + '</b><span style="font-size:.8rem;background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:12px">' + g.n.toLocaleString('vi-VN') + ' DN</span></div>'
+      + '<div style="font-size:.85rem;color:#555;margin-top:4px">' + esc(g.cq) + ' — ' + esc(rrFmtDate(g.ngay)) + '</div>'
+      + '<div style="font-size:.85rem;color:#666;margin-top:2px">' + esc(g.trich) + '</div>'
+      + (g.link ? '<a href="' + esc(g.link) + '" target="_blank" rel="noopener" style="font-size:.85rem;color:#1565c0;display:inline-block;margin-top:4px">📄 Xem file gốc</a>' : '')
+      + '</div>';
+  });
+  html += '</div>';
+  const missing = RUIRO_STATIC.missing || [];
+  if(missing.length) html += '<p style="font-size:.8rem;color:#888;margin-top:8px">Chưa đưa vào ô tra cứu: ' + missing.map(esc).join('; ') + '.</p>';
+  html += '</div>';
+  return html;
+}
 
 function rrApi(action, params) {
   if(!RUIRO_SCRIPT_URL) return Promise.reject(new Error('Chưa cấu hình URL Apps Script'));
@@ -4422,7 +4506,7 @@ function renderRuiRo(main) {
 <div class="page">
   <div class="page-head"><div>
     <h1>Tra cứu hóa đơn rủi ro</h1>
-    <p>Tra cứu doanh nghiệp có dấu hiệu rủi ro về hóa đơn, thuế. Dữ liệu do cộng đồng đóng góp.</p>
+    <p>Tra cứu doanh nghiệp trong các danh sách công khai về hóa đơn, thuế. Kèm bản gốc công văn đã ký.</p>
   </div></div>
 
   <div class="rr-tabs" style="display:flex;gap:8px;margin:0 0 20px;flex-wrap:wrap">
@@ -4443,6 +4527,13 @@ function renderRuiRo(main) {
     rrShowTab(t.dataset.tab, main);
   }));
   rrShowTab('search', main);
+  rrLoadStatic().then(d => {
+    const btn = main.querySelector('.rr-tab[data-tab="list"]');
+    const nDoc = new Set((d.vanban || []).map(v => v.so_van_ban)).size;
+    if(btn) btn.textContent = '📂 DS văn bản (' + nDoc + ')';
+    const src = $('#rrSrc', main);
+    if(src) src.innerHTML = rrSrcHtml(d);
+  });
 }
 
 function rrShowTab(tab, main) {
@@ -4464,41 +4555,30 @@ function rrTabSearch(ct) {
     <input id="rrQ" type="search" placeholder="Nhập MST, tên công ty, hoặc số hóa đơn..." style="flex:1;padding:10px 14px;border:1.5px solid var(--brd);border-radius:8px;font-size:1rem">
     <button id="rrSearchBtn" class="btn primary" type="button" style="white-space:nowrap">Tra cứu</button>
   </div>
+  <p id="rrSrc" style="font-size:.85rem;color:#666;margin:-4px 0 12px">${RUIRO_STATIC ? rrSrcHtml(RUIRO_STATIC) : 'Đang tải danh sách công khai...'}</p>
   <div id="rrResult" style="min-height:60px"></div>
 </div>`;
   const inp = $('#rrQ', ct);
   const btn = $('#rrSearchBtn', ct);
   const res = $('#rrResult', ct);
 
-  function doSearch() {
+  async function doSearch() {
     const q = inp.value.trim();
     if(!q) { res.innerHTML = '<p class="muted">Nhập từ khóa để tìm kiếm.</p>'; return; }
     res.innerHTML = '<p>⏳ Đang tìm...</p>';
+    await rrLoadStatic();
+    const hit = rrCollect(q);
     if(RUIRO_SCRIPT_URL) {
-      const apiQ = /^\d+$/.test(q) ? q.replace(/^0+/, '') : q;
-      rrApi('search', {q: apiQ}).then(r => {
-        if(r.error) { res.innerHTML = '<p style="color:#d32f2f">Lỗi: ' + esc(r.error) + '</p>'; return; }
-        rrRenderResults(res, r.vanban || [], r.hoadon || [], q);
-      }).catch(e => {
-        const db = rrLocalDB();
-        const qu = q.toUpperCase();
-        const qAlt = qu.replace(/^0+/, '');
-        const matchQ = s => s.includes(qu) || (qAlt && s.includes(qAlt));
-        const vbHits = db.vanban.filter(v => matchQ([v.so_van_ban,v.mst_dn,v.ten_dn,v.don_vi,v.trich_yeu].join('|').toUpperCase()));
-        const hdHits = db.hoadon.filter(h => matchQ([h.ky_hieu_hd,h.so_hoa_don,h.mst_ban,h.ten_ban,h.mst_mua,h.ten_mua].join('|').toUpperCase()));
-        if(vbHits.length || hdHits.length) { rrRenderResults(res, vbHits, hdHits, q); }
-        else { res.innerHTML = '<p style="color:#d32f2f">Lỗi kết nối: ' + esc(e.message) + '</p>'; }
-      });
-    } else {
-      const db = rrLocalDB();
-      const qu = q.toUpperCase();
-      const qAlt = qu.replace(/^0+/, '');
-      const matchQ = s => s.includes(qu) || (qAlt && s.includes(qAlt));
-      const vbHits = db.vanban.filter(v => matchQ([v.so_van_ban,v.mst_dn,v.ten_dn,v.don_vi,v.trich_yeu].join('|').toUpperCase()));
-      const hdHits = db.hoadon.filter(h => matchQ([h.ky_hieu_hd,h.so_hoa_don,h.mst_ban,h.ten_ban,h.mst_mua,h.ten_mua].join('|').toUpperCase()));
-      if(vbHits.length || hdHits.length) { rrRenderResults(res, vbHits, hdHits, q); }
-      else { res.innerHTML = '<p class="muted">Không tìm thấy. <br><small>Chưa kết nối Google Sheets — chỉ tìm trong dữ liệu offline.</small></p>'; }
+      try {
+        const apiQ = /^\d+$/.test(q) ? q.replace(/^0+/, '') : q;
+        const r = await rrApi('search', {q: apiQ});
+        if(!r.error) {
+          hit.vanban = rrMerge(r.vanban || [], hit.vanban, v => (v.so_van_ban || '') + '|' + (v.mst_dn || ''));
+          hit.hoadon = rrMerge(r.hoadon || [], hit.hoadon, h => (h.ma_vb || '') + '|' + (h.mst_ban || '') + '|' + (h.so_hoa_don || '') + '|' + (h.mst_mua || ''));
+        }
+      } catch(e) { /* danh sách trên site vẫn tra được */ }
     }
+    rrRenderResults(res, hit.vanban, hit.hoadon, q);
   }
   btn.addEventListener('click', doSearch);
   inp.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
@@ -4512,6 +4592,8 @@ function rrFmtMST(s) {
 }
 function rrFmtDate(s) {
   if(!s) return '';
+  const m = String(s).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m) return ('0'+m[1]).slice(-2) + '/' + ('0'+m[2]).slice(-2) + '/' + m[3];
   const d = new Date(s);
   if(isNaN(d)) return String(s);
   return ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + d.getFullYear();
@@ -4523,12 +4605,16 @@ function rrFmtMoney(s) {
   return n.toLocaleString('vi-VN');
 }
 function rrRenderResults(container, vbs, hds, q) {
+  const vbTotal = vbs.length, hdTotal = hds.length;
+  vbs = vbs.slice(0, 80);
+  hds = hds.slice(0, 80);
   let html = '';
-  if(!vbs.length && !hds.length) {
+  if(!vbTotal && !hdTotal) {
     html = '<p class="muted">Không tìm thấy kết quả cho "' + esc(q) + '".</p>';
   } else {
+    if(vbTotal > 80 || hdTotal > 80) html += '<p class="muted">Có ' + vbTotal.toLocaleString('vi-VN') + ' doanh nghiệp' + (hdTotal ? ' và ' + hdTotal.toLocaleString('vi-VN') + ' hóa đơn' : '') + '. Đang hiện 80 dòng đầu — nhập đúng MST để thu hẹp.</p>';
     if(vbs.length) {
-      html += '<h4 style="margin:12px 0 8px;color:#d32f2f">⚠️ Văn bản cảnh báo (' + vbs.length + ')</h4>';
+      html += '<h4 style="margin:12px 0 8px;color:#d32f2f">⚠️ Văn bản cảnh báo (' + vbTotal.toLocaleString('vi-VN') + ')</h4>';
       html += '<div style="display:flex;flex-direction:column;gap:8px">';
       vbs.forEach(v => {
         html += `<div style="background:#fff3f3;border:1px solid #ffcdd2;border-radius:10px;padding:12px">
@@ -4545,7 +4631,7 @@ function rrRenderResults(container, vbs, hds, q) {
       html += '</div>';
     }
     if(hds.length) {
-      html += '<h4 style="margin:16px 0 8px;color:#e65100">📋 Hóa đơn liên quan (' + hds.length + ')</h4>';
+      html += '<h4 style="margin:16px 0 8px;color:#e65100">📋 Hóa đơn liên quan (' + hdTotal.toLocaleString('vi-VN') + ')</h4>';
       html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem">';
       html += '<thead><tr style="background:#fff3e0"><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Ký hiệu</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Số HĐ</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Ngày</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">MST bán</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Tên bán</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">MST mua</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Tên mua</th><th style="padding:8px;text-align:right;border-bottom:2px solid #ffe0b2">Tổng tiền</th></tr></thead><tbody>';
       hds.forEach((h, i) => {
@@ -4578,19 +4664,22 @@ function rrTabCrossCheck(ct) {
   <div id="rrCcResult" style="margin-top:16px"></div>
 </div>`;
 
-  $('#rrCcBtn', ct).addEventListener('click', () => {
+  $('#rrCcBtn', ct).addEventListener('click', async () => {
     const lines = $('#rrCcInput', ct).value.trim().split('\n').map(l => l.trim().toUpperCase()).filter(Boolean);
     if(!lines.length) { $('#rrCcResult', ct).innerHTML = '<p class="muted">Nhập ít nhất 1 mã.</p>'; return; }
-
+    $('#rrCcResult', ct).innerHTML = '<p>⏳ Đang đối chiếu...</p>';
+    await rrLoadStatic();
     const db = rrLocalDB();
+    const allVb = db.vanban.concat((RUIRO_STATIC && RUIRO_STATIC.vanban) || []);
+    const allHd = db.hoadon.concat((RUIRO_STATIC && RUIRO_STATIC.hoadon) || []);
     const results = [];
     lines.forEach(code => {
-      const matchVb = db.vanban.filter(v => v.mst_dn && v.mst_dn.toUpperCase().includes(code));
-      const matchHd = db.hoadon.filter(h =>
-        (h.mst_ban && h.mst_ban.toUpperCase().includes(code)) ||
-        (h.mst_mua && h.mst_mua.toUpperCase().includes(code)) ||
-        (h.so_hoa_don && h.so_hoa_don.toUpperCase().includes(code)) ||
-        (h.ky_hieu_hd && (h.ky_hieu_hd + '-' + h.so_hoa_don).toUpperCase().includes(code))
+      const matchVb = allVb.filter(v => rrMatch(code, v.mst_dn || ''));
+      const matchHd = allHd.filter(h =>
+        rrMatch(code, h.mst_ban || '') ||
+        rrMatch(code, h.mst_mua || '') ||
+        rrMatch(code, h.so_hoa_don || '') ||
+        rrMatch(code, (h.ky_hieu_hd || '') + '-' + (h.so_hoa_don || ''))
       );
       if(matchVb.length || matchHd.length) {
         results.push({code, vbCount: matchVb.length, hdCount: matchHd.length, vanban: matchVb, hoadon: matchHd});
@@ -4599,14 +4688,14 @@ function rrTabCrossCheck(ct) {
 
     const res = $('#rrCcResult', ct);
     if(!results.length) {
-      res.innerHTML = '<div style="text-align:center;padding:20px;background:#e8f5e9;border-radius:10px"><span style="font-size:2rem">✅</span><p style="margin:8px 0 0;font-weight:600;color:#2e7d32">Không phát hiện rủi ro</p><p style="font-size:.9rem;color:#666;margin:4px 0 0">Không có mã nào trùng với dữ liệu cảnh báo đã thu thập (' + db.hoadon.length + ' hóa đơn từ ' + db.vanban.length + ' văn bản).</p></div>';
+      res.innerHTML = '<div style="text-align:center;padding:20px;background:#e8f5e9;border-radius:10px"><span style="font-size:2rem">✅</span><p style="margin:8px 0 0;font-weight:600;color:#2e7d32">Không phát hiện rủi ro</p><p style="font-size:.9rem;color:#666;margin:4px 0 0">Không có mã nào trùng với ' + allVb.length.toLocaleString('vi-VN') + ' doanh nghiệp trong danh sách công khai.</p></div>';
       return;
     }
 
     let html = '<div style="background:#fff3f3;border-radius:10px;padding:16px;margin-bottom:12px"><span style="font-size:1.5rem">🚨</span> <b style="color:#d32f2f">Phát hiện ' + results.length + '/' + lines.length + ' mã có liên quan đến hóa đơn rủi ro!</b></div>';
     results.forEach(r => {
-      const level = r.hdCount > 10 ? 'CAO' : r.hdCount > 3 ? 'TRUNG BÌNH' : 'THẤP';
-      const color = r.hdCount > 10 ? '#d32f2f' : r.hdCount > 3 ? '#e65100' : '#f9a825';
+      const level = r.vbCount ? 'CÓ TRONG DANH SÁCH' : (r.hdCount > 10 ? 'CAO' : r.hdCount > 3 ? 'TRUNG BÌNH' : 'THẤP');
+      const color = r.vbCount || r.hdCount > 10 ? '#d32f2f' : r.hdCount > 3 ? '#e65100' : '#f9a825';
       html += `<div style="border:1.5px solid ${color};border-radius:10px;padding:12px;margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
           <code style="font-size:1.1rem;font-weight:700">${esc(r.code)}</code>
@@ -4804,11 +4893,17 @@ function rrTabInvoices(ct) {
 
 function rrTabList(ct) {
   const db = rrLocalDB();
+  const staticHtml = rrStaticListHtml();
   if(!db.vanban.length) {
-    ct.innerHTML = '<div style="text-align:center;padding:40px"><p style="font-size:1.5rem">📂</p><p style="color:#888">Chưa có văn bản nào. Bấm tab <b>Upload văn bản</b> để bắt đầu.</p></div>';
+    if(!RUIRO_STATIC) {
+      ct.innerHTML = '<p>⏳ Đang tải danh sách...</p>';
+      rrLoadStatic().then(() => { if(ct.isConnected) rrTabList(ct); });
+      return;
+    }
+    ct.innerHTML = staticHtml || '<div style="text-align:center;padding:40px"><p style="font-size:1.5rem">📂</p><p style="color:#888">Chưa có văn bản nào. Bấm tab <b>Upload văn bản</b> để bắt đầu.</p></div>';
     return;
   }
-  let html = '<div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0;font-size:1.1rem">📂 ' + db.vanban.length + ' văn bản — ' + db.hoadon.length + ' hóa đơn</h3><button id="rrExport" class="btn sm" type="button">📥 Xuất JSON</button></div>';
+  let html = staticHtml + '<div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0;font-size:1.1rem">📂 ' + db.vanban.length + ' văn bản tải lên máy — ' + db.hoadon.length + ' hóa đơn</h3><button id="rrExport" class="btn sm" type="button">📥 Xuất JSON</button></div>';
   html += '<div style="display:flex;flex-direction:column;gap:8px">';
   db.vanban.forEach((v, i) => {
     const hdCount = db.hoadon.filter(h => h.ma_vb === v.ma_vb).length;
