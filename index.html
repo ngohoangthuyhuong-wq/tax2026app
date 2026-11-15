@@ -4630,6 +4630,10 @@ function rrTabUpload(ct) {
       <textarea id="rrTrichYeu" rows="3" placeholder="VD: Cảnh báo DN có dấu hiệu rủi ro cao về sử dụng hóa đơn..." style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box;resize:vertical"></textarea>
     </div>
     <div style="grid-column:span 2">
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Người upload *</label>
+      <input id="rrNguoiUp" type="text" placeholder="VD: Nguyễn Văn A — Đội thuế số 3" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
+    </div>
+    <div style="grid-column:span 2">
       <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">File PDF (tùy chọn)</label>
       <input id="rrFile" type="file" accept=".pdf" style="font-size:.9rem">
       <p style="font-size:.8rem;color:#888;margin:4px 0 0">File sẽ được upload lên Google Drive (nếu đã cấu hình).</p>
@@ -4648,9 +4652,10 @@ function rrTabUpload(ct) {
     const mst = $('#rrMst', ct).value.trim();
     const tenDn = $('#rrTenDn', ct).value.trim();
     const trichYeu = $('#rrTrichYeu', ct).value.trim();
+    const nguoiUp = $('#rrNguoiUp', ct).value.trim();
     const msg = $('#rrUpMsg', ct);
 
-    if(!soVb || !ngay || !donVi || !mst || !tenDn) {
+    if(!soVb || !ngay || !donVi || !mst || !tenDn || !nguoiUp) {
       msg.innerHTML = '<p style="color:#d32f2f">Vui lòng điền đầy đủ các trường có dấu *</p>';
       return;
     }
@@ -4675,7 +4680,7 @@ function rrTabUpload(ct) {
       } catch(e) { /* PDF upload failed, continue without */ }
     }
 
-    const vb = {ma_vb: maVb, so_van_ban: soVb, don_vi_ban_hanh: donVi, ngay_ban_hanh: ngay, trich_yeu: trichYeu, mst_dn: mst, ten_dn: tenDn, link_pdf: linkPdf, nguoi_upload: getMachineId(), ngay_upload: new Date().toISOString()};
+    const vb = {ma_vb: maVb, so_van_ban: soVb, don_vi_ban_hanh: donVi, ngay_ban_hanh: ngay, trich_yeu: trichYeu, mst_dn: mst, ten_dn: tenDn, link_pdf: linkPdf, nguoi_upload: nguoiUp, ngay_upload: new Date().toISOString(), trang_thai: 'cho_duyet'};
 
     const db = rrLocalDB();
     db.vanban.push(vb);
@@ -4686,7 +4691,7 @@ function rrTabUpload(ct) {
     }
 
     msg.innerHTML = '<p style="color:#2e7d32">✅ Đã lưu văn bản <b>' + esc(soVb) + '</b> (mã: ' + maVb + '). Giờ hãy chuyển sang tab <b>Nhập hóa đơn</b> để nhập danh sách HĐ đính kèm.</p>';
-    ['rrSoVb','rrNgay','rrDonVi','rrMst','rrTenDn','rrTrichYeu'].forEach(id => { const el = $('#' + id, ct); if(el) el.value = ''; });
+    ['rrSoVb','rrNgay','rrDonVi','rrMst','rrTenDn','rrTrichYeu','rrNguoiUp'].forEach(id => { const el = $('#' + id, ct); if(el) el.value = ''; });
   });
 }
 
@@ -4793,7 +4798,13 @@ function rrTabList(ct) {
       <div style="font-size:.9rem;margin-top:4px"><b>${esc(v.ten_dn)}</b> — MST: <code>${esc(v.mst_dn)}</code></div>
       <div style="font-size:.85rem;color:#666">${esc(v.don_vi_ban_hanh || '')} — ${esc(v.ngay_ban_hanh || '')}</div>
       ${v.trich_yeu ? '<div style="font-size:.85rem;color:#888;margin-top:2px">' + esc(v.trich_yeu) + '</div>' : ''}
-      ${v.link_pdf ? '<a href="' + esc(v.link_pdf) + '" target="_blank" rel="noopener" style="font-size:.85rem;color:#1565c0">📄 PDF gốc</a>' : ''}
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+        <span style="font-size:.8rem;background:${v.trang_thai === 'da_duyet' ? '#e8f5e9;color:#2e7d32' : '#fff3e0;color:#e65100'};padding:2px 10px;border-radius:12px;font-weight:600">${v.trang_thai === 'da_duyet' ? '✅ Đã duyệt' : '⏳ Chờ duyệt'}</span>
+        ${v.nguoi_upload ? '<span style="font-size:.8rem;color:#555">👤 ' + esc(v.nguoi_upload) + '</span>' : ''}
+        ${v.ngay_upload ? '<span style="font-size:.8rem;color:#999">🕐 ' + new Date(v.ngay_upload).toLocaleDateString('vi-VN') + '</span>' : ''}
+        ${v.trang_thai !== 'da_duyet' ? '<button class="btn sm rr-approve" data-idx="' + i + '" type="button" style="font-size:.78rem;padding:2px 8px" title="Duyệt">✅ Duyệt</button>' : ''}
+      </div>
+      ${v.link_pdf ? '<a href="' + esc(v.link_pdf) + '" target="_blank" rel="noopener" style="font-size:.85rem;color:#1565c0;display:inline-block;margin-top:4px">📄 PDF gốc</a>' : ''}
     </div>`;
   });
   html += '</div>';
@@ -4806,6 +4817,13 @@ function rrTabList(ct) {
     if(!confirm('Xóa văn bản ' + db.vanban[idx].so_van_ban + ' và toàn bộ hóa đơn liên quan?')) return;
     db.vanban.splice(idx, 1);
     db.hoadon = db.hoadon.filter(h => h.ma_vb !== maVb);
+    rrSaveLocal(db);
+    rrTabList(ct);
+  }));
+  $$('.rr-approve', ct).forEach(btn => btn.addEventListener('click', () => {
+    const idx = parseInt(btn.dataset.idx);
+    const db = rrLocalDB();
+    db.vanban[idx].trang_thai = 'da_duyet';
     rrSaveLocal(db);
     rrTabList(ct);
   }));
