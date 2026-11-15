@@ -4474,26 +4474,31 @@ function rrTabSearch(ct) {
     const q = inp.value.trim();
     if(!q) { res.innerHTML = '<p class="muted">Nhập từ khóa để tìm kiếm.</p>'; return; }
     res.innerHTML = '<p>⏳ Đang tìm...</p>';
-    const db = rrLocalDB();
-    const qu = q.toUpperCase();
-    const qAlt = qu.replace(/^0+/, '');
-    const matchQ = s => s.includes(qu) || (qAlt && s.includes(qAlt));
-    const vbHits = db.vanban.filter(v => matchQ([v.so_van_ban,v.mst_dn,v.ten_dn,v.don_vi,v.trich_yeu].join('|').toUpperCase()));
-    const hdHits = db.hoadon.filter(h => matchQ([h.ky_hieu_hd,h.so_hoa_don,h.mst_ban,h.ten_ban,h.mst_mua,h.ten_mua].join('|').toUpperCase()));
-
-    if(!vbHits.length && !hdHits.length) {
-      if(RUIRO_SCRIPT_URL) {
-        const apiQ = /^\d+$/.test(q) ? q.replace(/^0+/, '') : q;
-        rrApi('search', {q: apiQ}).then(r => {
-          if(r.error) { res.innerHTML = '<p style="color:#d32f2f">Lỗi: ' + esc(r.error) + '</p>'; return; }
-          rrRenderResults(res, r.vanban || [], r.hoadon || [], q);
-        }).catch(e => { res.innerHTML = '<p style="color:#d32f2f">Lỗi kết nối: ' + esc(e.message) + '</p>'; });
-      } else {
-        res.innerHTML = '<p class="muted">Không tìm thấy trong dữ liệu đã lưu. ' + (RUIRO_SCRIPT_URL ? '' : '<br><small>Chưa kết nối Google Sheets — chỉ tìm trong dữ liệu offline.</small>') + '</p>';
-      }
-      return;
+    if(RUIRO_SCRIPT_URL) {
+      const apiQ = /^\d+$/.test(q) ? q.replace(/^0+/, '') : q;
+      rrApi('search', {q: apiQ}).then(r => {
+        if(r.error) { res.innerHTML = '<p style="color:#d32f2f">Lỗi: ' + esc(r.error) + '</p>'; return; }
+        rrRenderResults(res, r.vanban || [], r.hoadon || [], q);
+      }).catch(e => {
+        const db = rrLocalDB();
+        const qu = q.toUpperCase();
+        const qAlt = qu.replace(/^0+/, '');
+        const matchQ = s => s.includes(qu) || (qAlt && s.includes(qAlt));
+        const vbHits = db.vanban.filter(v => matchQ([v.so_van_ban,v.mst_dn,v.ten_dn,v.don_vi,v.trich_yeu].join('|').toUpperCase()));
+        const hdHits = db.hoadon.filter(h => matchQ([h.ky_hieu_hd,h.so_hoa_don,h.mst_ban,h.ten_ban,h.mst_mua,h.ten_mua].join('|').toUpperCase()));
+        if(vbHits.length || hdHits.length) { rrRenderResults(res, vbHits, hdHits, q); }
+        else { res.innerHTML = '<p style="color:#d32f2f">Lỗi kết nối: ' + esc(e.message) + '</p>'; }
+      });
+    } else {
+      const db = rrLocalDB();
+      const qu = q.toUpperCase();
+      const qAlt = qu.replace(/^0+/, '');
+      const matchQ = s => s.includes(qu) || (qAlt && s.includes(qAlt));
+      const vbHits = db.vanban.filter(v => matchQ([v.so_van_ban,v.mst_dn,v.ten_dn,v.don_vi,v.trich_yeu].join('|').toUpperCase()));
+      const hdHits = db.hoadon.filter(h => matchQ([h.ky_hieu_hd,h.so_hoa_don,h.mst_ban,h.ten_ban,h.mst_mua,h.ten_mua].join('|').toUpperCase()));
+      if(vbHits.length || hdHits.length) { rrRenderResults(res, vbHits, hdHits, q); }
+      else { res.innerHTML = '<p class="muted">Không tìm thấy. <br><small>Chưa kết nối Google Sheets — chỉ tìm trong dữ liệu offline.</small></p>'; }
     }
-    rrRenderResults(res, vbHits, hdHits, q);
   }
   btn.addEventListener('click', doSearch);
   inp.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
