@@ -4504,6 +4504,18 @@ function rrTabSearch(ct) {
   inp.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 }
 
+function rrFmtDate(s) {
+  if(!s) return '';
+  const d = new Date(s);
+  if(isNaN(d)) return String(s);
+  return ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2) + '/' + d.getFullYear();
+}
+function rrFmtMoney(s) {
+  if(!s) return '';
+  const n = Number(String(s).replace(/[^0-9.-]/g,''));
+  if(isNaN(n)) return String(s);
+  return n.toLocaleString('vi-VN');
+}
 function rrRenderResults(container, vbs, hds, q) {
   let html = '';
   if(!vbs.length && !hds.length) {
@@ -4516,7 +4528,7 @@ function rrRenderResults(container, vbs, hds, q) {
         html += `<div style="background:#fff3f3;border:1px solid #ffcdd2;border-radius:10px;padding:12px">
           <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
             <b style="color:#d32f2f">${esc(v.so_van_ban)}</b>
-            <span style="font-size:.85rem;color:#888">${esc(v.ngay_ban_hanh || v.ngay || '')}</span>
+            <span style="font-size:.85rem;color:#888">${esc(rrFmtDate(v.ngay_ban_hanh || v.ngay))}</span>
           </div>
           <div style="font-size:.9rem;margin:4px 0"><b>DN:</b> ${esc(v.ten_dn)} — MST: <code>${esc(v.mst_dn)}</code></div>
           <div style="font-size:.85rem;color:#555">${esc(v.don_vi || v.don_vi_ban_hanh || '')}</div>
@@ -4534,12 +4546,12 @@ function rrRenderResults(container, vbs, hds, q) {
         html += `<tr style="background:${i % 2 ? '#fff8f0' : '#fff'}">
           <td style="padding:6px 8px">${esc(h.ky_hieu_hd || h.ky_hieu || '')}</td>
           <td style="padding:6px 8px">${esc(h.so_hoa_don || h.so_hd || '')}</td>
-          <td style="padding:6px 8px">${esc(h.ngay_hoa_don || h.ngay || '')}</td>
+          <td style="padding:6px 8px">${esc(rrFmtDate(h.ngay_hoa_don || h.ngay))}</td>
           <td style="padding:6px 8px"><code>${esc(h.mst_ban || '')}</code></td>
           <td style="padding:6px 8px">${esc(h.ten_ban || '')}</td>
           <td style="padding:6px 8px"><code>${esc(h.mst_mua || '')}</code></td>
           <td style="padding:6px 8px">${esc(h.ten_mua || '')}</td>
-          <td style="padding:6px 8px;text-align:right">${esc(h.tong_tien || h.tong || '')}</td>
+          <td style="padding:6px 8px;text-align:right">${rrFmtMoney(h.tong_tien || h.tong)}</td>
         </tr>`;
       });
       html += '</tbody></table></div>';
@@ -4803,7 +4815,7 @@ function rrTabList(ct) {
         </div>
       </div>
       <div style="font-size:.9rem;margin-top:4px"><b>${esc(v.ten_dn)}</b> — MST: <code>${esc(v.mst_dn)}</code></div>
-      <div style="font-size:.85rem;color:#666">${esc(v.don_vi_ban_hanh || '')} — ${esc(v.ngay_ban_hanh || '')}</div>
+      <div style="font-size:.85rem;color:#666">${esc(v.don_vi_ban_hanh || '')} — ${esc(rrFmtDate(v.ngay_ban_hanh))}</div>
       ${v.trich_yeu ? '<div style="font-size:.85rem;color:#888;margin-top:2px">' + esc(v.trich_yeu) + '</div>' : ''}
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
         <span style="font-size:.8rem;background:${v.trang_thai === 'da_duyet' ? '#e8f5e9;color:#2e7d32' : '#fff3e0;color:#e65100'};padding:2px 10px;border-radius:12px;font-weight:600">${v.trang_thai === 'da_duyet' ? '✅ Đã duyệt' : '⏳ Chờ duyệt'}</span>
