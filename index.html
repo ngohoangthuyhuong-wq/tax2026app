@@ -144,7 +144,7 @@ h3{font-size:1.02rem;margin:0 0 8px}
 .tl-bar .now{position:absolute;top:2px;height:30px;width:2px;background:var(--seal)}
 .tl-bar .now span{position:absolute;top:-2px;left:6px;font-size:.72rem;font-weight:700;color:var(--seal);white-space:nowrap}
 .tl-bar .yr{position:absolute;top:24px;font-size:.7rem;color:var(--muted);transform:translateX(-50%)}
-.stubs{display:flex;align-items:flex-start;gap:10px;overflow-x:auto;padding:10px 20px 6px;scroll-snap-type:x proximity;scrollbar-width:thin}
+.stubs{display:flex;align-items:flex-start;gap:10px;overflow-x:auto;padding:10px 20px 6px;scroll-snap-type:x mandatory;scroll-padding-left:20px;scrollbar-width:thin}
 .stub{flex:none;width:280px;scroll-snap-align:start;border:1px solid var(--line);border-radius:var(--r2);padding:10px 12px;background:var(--surface-2);position:relative}
 .stub.fut{background:var(--surface);border-color:var(--soon)}
 .stub.flash{box-shadow:0 0 0 3px var(--ink-soft);border-color:var(--ink-2)}
@@ -2349,8 +2349,8 @@ function renderHome(main){
   </div>`;
 
   const sc = $('#stubs'); const nowEl = $('#stubNow');
-  const scrollNow = () => { if(sc && nowEl) sc.scrollTo({left: Math.max(0, nowEl.offsetLeft - sc.clientWidth/2 + 60), behavior:'smooth'}); };
-  if(sc && nowEl) requestAnimationFrame(() => { sc.scrollLeft = Math.max(0, nowEl.offsetLeft - sc.clientWidth/2 + 60); });
+  const scrollNow = () => { if(sc && nowEl) sc.scrollTo({left: Math.max(0, nowEl.offsetLeft - 20), behavior:'smooth'}); };
+  if(sc && nowEl) requestAnimationFrame(() => { sc.scrollLeft = Math.max(0, nowEl.offsetLeft - 20); });
   const btnNow = $('#tlToNow', main); if(btnNow) btnNow.addEventListener('click', scrollNow);
   $$('.kpi-card[data-nav]', main).forEach(c => c.addEventListener('click', () => { const [p, q] = c.dataset.nav.split('?'); go(p, q ? Object.fromEntries(new URLSearchParams(q)) : undefined); }));
   $$('.tl-bar .pt', main).forEach(b => b.addEventListener('click', () => { const el = $('#stub' + b.dataset.stub); if(!el) return; sc.scrollTo({left: el.offsetLeft - 20, behavior:'smooth'}); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); }));
