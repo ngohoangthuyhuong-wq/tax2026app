@@ -4504,6 +4504,12 @@ function rrTabSearch(ct) {
   inp.addEventListener('keydown', e => { if(e.key === 'Enter') doSearch(); });
 }
 
+function rrFmtMST(s) {
+  if(!s) return '';
+  s = String(s).replace(/[^0-9-]/g,'');
+  if(/^[0-9]+$/.test(s) && s.length < 10) s = s.padStart(10, '0');
+  return s;
+}
 function rrFmtDate(s) {
   if(!s) return '';
   const d = new Date(s);
@@ -4530,7 +4536,7 @@ function rrRenderResults(container, vbs, hds, q) {
             <b style="color:#d32f2f">${esc(v.so_van_ban)}</b>
             <span style="font-size:.85rem;color:#888">${esc(rrFmtDate(v.ngay_ban_hanh || v.ngay))}</span>
           </div>
-          <div style="font-size:.9rem;margin:4px 0"><b>DN:</b> ${esc(v.ten_dn)} — MST: <code>${esc(v.mst_dn)}</code></div>
+          <div style="font-size:.9rem;margin:4px 0"><b>DN:</b> ${esc(v.ten_dn)} — MST: <code>${esc(rrFmtMST(v.mst_dn))}</code></div>
           <div style="font-size:.85rem;color:#555">${esc(v.don_vi || v.don_vi_ban_hanh || '')}</div>
           <div style="font-size:.85rem;color:#666;margin-top:4px">${esc(v.trich_yeu || '')}</div>
           ${v.link_pdf ? '<a href="' + esc(v.link_pdf) + '" target="_blank" rel="noopener" style="font-size:.85rem;color:#1565c0;margin-top:4px;display:inline-block">📄 Xem file gốc</a>' : ''}
@@ -4547,9 +4553,9 @@ function rrRenderResults(container, vbs, hds, q) {
           <td style="padding:6px 8px">${esc(h.ky_hieu_hd || h.ky_hieu || '')}</td>
           <td style="padding:6px 8px">${esc(h.so_hoa_don || h.so_hd || '')}</td>
           <td style="padding:6px 8px">${esc(rrFmtDate(h.ngay_hoa_don || h.ngay))}</td>
-          <td style="padding:6px 8px"><code>${esc(h.mst_ban || '')}</code></td>
+          <td style="padding:6px 8px"><code>${esc(rrFmtMST(h.mst_ban))}</code></td>
           <td style="padding:6px 8px">${esc(h.ten_ban || '')}</td>
-          <td style="padding:6px 8px"><code>${esc(h.mst_mua || '')}</code></td>
+          <td style="padding:6px 8px"><code>${esc(rrFmtMST(h.mst_mua))}</code></td>
           <td style="padding:6px 8px">${esc(h.ten_mua || '')}</td>
           <td style="padding:6px 8px;text-align:right">${rrFmtMoney(h.tong_tien || h.tong)}</td>
         </tr>`;
@@ -4814,7 +4820,7 @@ function rrTabList(ct) {
           <button class="btn sm rr-del" data-idx="${i}" type="button" style="color:#d32f2f;font-size:.8rem" title="Xóa">🗑️</button>
         </div>
       </div>
-      <div style="font-size:.9rem;margin-top:4px"><b>${esc(v.ten_dn)}</b> — MST: <code>${esc(v.mst_dn)}</code></div>
+      <div style="font-size:.9rem;margin-top:4px"><b>${esc(v.ten_dn)}</b> — MST: <code>${esc(rrFmtMST(v.mst_dn))}</code></div>
       <div style="font-size:.85rem;color:#666">${esc(v.don_vi_ban_hanh || '')} — ${esc(rrFmtDate(v.ngay_ban_hanh))}</div>
       ${v.trich_yeu ? '<div style="font-size:.85rem;color:#888;margin-top:2px">' + esc(v.trich_yeu) + '</div>' : ''}
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
