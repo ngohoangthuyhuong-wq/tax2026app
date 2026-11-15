@@ -4476,8 +4476,10 @@ function rrTabSearch(ct) {
     res.innerHTML = '<p>⏳ Đang tìm...</p>';
     const db = rrLocalDB();
     const qu = q.toUpperCase();
-    const vbHits = db.vanban.filter(v => [v.so_van_ban,v.mst_dn,v.ten_dn,v.don_vi,v.trich_yeu].join('|').toUpperCase().includes(qu));
-    const hdHits = db.hoadon.filter(h => [h.ky_hieu_hd,h.so_hoa_don,h.mst_ban,h.ten_ban,h.mst_mua,h.ten_mua].join('|').toUpperCase().includes(qu));
+    const qAlt = qu.replace(/^0+/, '');
+    const matchQ = s => s.includes(qu) || (qAlt && s.includes(qAlt));
+    const vbHits = db.vanban.filter(v => matchQ([v.so_van_ban,v.mst_dn,v.ten_dn,v.don_vi,v.trich_yeu].join('|').toUpperCase()));
+    const hdHits = db.hoadon.filter(h => matchQ([h.ky_hieu_hd,h.so_hoa_don,h.mst_ban,h.ten_ban,h.mst_mua,h.ten_mua].join('|').toUpperCase()));
 
     if(!vbHits.length && !hdHits.length) {
       if(RUIRO_SCRIPT_URL) {
@@ -4905,5 +4907,4 @@ document.addEventListener('DOMContentLoaded', () => { if(checkTrial()) init(); }
 
 </script>
 </body>
-</html><!-- deploy trigger -->
-<!-- v2 -->
+</html>
