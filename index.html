@@ -4483,7 +4483,8 @@ function rrTabSearch(ct) {
 
     if(!vbHits.length && !hdHits.length) {
       if(RUIRO_SCRIPT_URL) {
-        rrApi('search', {q: q}).then(r => {
+        const apiQ = /^\d+$/.test(q) ? q.replace(/^0+/, '') : q;
+        rrApi('search', {q: apiQ}).then(r => {
           if(r.error) { res.innerHTML = '<p style="color:#d32f2f">Lỗi: ' + esc(r.error) + '</p>'; return; }
           rrRenderResults(res, r.vanban || [], r.hoadon || [], q);
         }).catch(e => { res.innerHTML = '<p style="color:#d32f2f">Lỗi kết nối: ' + esc(e.message) + '</p>'; });
