@@ -4463,7 +4463,8 @@ function rrFileLink(url) {
   if (!url) return '';
   const hosted = url.indexOf('ruiro/') === 0;
   const pdf = hosted || /\.pdf($|\?)/i.test(url);
-  const label = hosted ? 'Mở bản gốc đã up' : (pdf ? 'Mở PDF nguồn' : 'Mở bảng nguồn');
+  if (!pdf) return '';
+  const label = hosted ? 'Mở bản gốc đã up' : 'Mở PDF nguồn';
   return '<a href="' + esc(rrPublicHref(url)) + '" target="_blank" rel="noopener" style="font-size:.85rem;color:#1565c0;font-weight:600">' + label + '</a>';
 }
 function rrDocGroups(rows) {
@@ -5178,7 +5179,7 @@ function rrTabList(ct) {
         <summary style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(g.so)}</b><span style="font-size:.8rem;background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:12px">${g.rows.length} DN</span></summary>
         <div style="font-size:.85rem;color:#666;margin-top:8px">${esc(g.dv)} — ${esc(rrFmtDate(g.ngay))}</div>
         ${g.trich ? '<div style="font-size:.85rem;color:#888;margin-top:2px">' + esc(g.trich) + '</div>' : ''}
-        ${g.link ? '<div style="margin-top:6px">' + rrFileLink(g.link) + '</div>' : ''}
+        ${rrFileLink(g.link)}
         <div style="overflow:auto;max-height:320px;margin-top:8px"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><tbody>
         ${g.rows.map(r => '<tr><td style="padding:4px 8px;white-space:nowrap"><code>' + esc(rrFmtMST(r.mst)) + '</code></td><td style="padding:4px 8px">' + esc(r.ten) + '</td></tr>').join('')}
         </tbody></table></div>
