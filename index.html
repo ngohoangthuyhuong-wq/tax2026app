@@ -4530,9 +4530,11 @@ function rrRenderResults(container, vbs, hds, q) {
     html = '<p class="muted">Không tìm thấy kết quả cho "' + esc(q) + '".</p>';
   } else {
     if(vbs.length) {
-      html += '<h4 style="margin:12px 0 8px;color:#d32f2f">⚠️ Văn bản cảnh báo (' + vbs.length + ')</h4>';
+      const seenVb = {};
+      const uniqueVbs = vbs.filter(v => { const k = (v.so_van_ban||'') + '|' + (v.mst_dn||''); if(seenVb[k]) return false; seenVb[k]=true; return true; });
+      html += '<h4 style="margin:12px 0 8px;color:#d32f2f">⚠️ Văn bản cảnh báo (' + uniqueVbs.length + ')</h4>';
       html += '<div style="display:flex;flex-direction:column;gap:8px">';
-      vbs.forEach(v => {
+      uniqueVbs.forEach(v => {
         html += `<div style="background:#fff3f3;border:1px solid #ffcdd2;border-radius:10px;padding:12px">
           <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">
             <b style="color:#d32f2f">${esc(v.so_van_ban)}</b>
@@ -4726,8 +4728,13 @@ function rrTabUpload(ct) {
       if(tenDn) $('#rrTenDn', ct).value = tenDn;
       if(trichYeu) $('#rrTrichYeu', ct).value = trichYeu;
       const filled = [soVb,ngay,donVi,mst,tenDn].filter(Boolean).length;
-      extractMsg.innerHTML = '✅ Đã trích xuất ' + filled + '/5 trường. Kiểm tra và bổ sung nếu cần.';
-      extractMsg.style.color = '#2e7d32';
+      if(filled === 0) {
+        extractMsg.innerHTML = '⚠️ PDF scan (ảnh) — không trích xuất được text. Vui lòng nhập tay các trường.';
+        extractMsg.style.color = '#e65100';
+      } else {
+        extractMsg.innerHTML = '✅ Đã trích xuất ' + filled + '/5 trường. Kiểm tra và bổ sung nếu cần.';
+        extractMsg.style.color = '#2e7d32';
+      }
     } catch(e) {
       extractMsg.innerHTML = '⚠️ Không trích xuất được (' + e.message + '). Vui lòng nhập tay.';
       extractMsg.style.color = '#e65100';
@@ -4746,6 +4753,13 @@ function rrTabUpload(ct) {
 
     if(!soVb || !ngay || !donVi || !mst || !tenDn || !nguoiUp) {
       msg.innerHTML = '<p style="color:#d32f2f">Vui lòng điền đầy đủ các trường có dấu *</p>';
+      return;
+    }
+
+    const dbChk = rrLocalDB();
+    const dup = dbChk.vanban.find(v => v.so_van_ban === soVb && v.mst_dn === mst);
+    if(dup) {
+      msg.innerHTML = '<p style="color:#e65100">⚠️ Trùng! Văn bản <b>' + esc(soVb) + '</b> cho MST <b>' + esc(mst) + '</b> đã tồn tại (mã: ' + esc(dup.ma_vb) + ').' + (dup.link_pdf ? ' <a href="' + esc(dup.link_pdf) + '" target="_blank">Xem PDF cũ</a>' : '') + '</p>';
       return;
     }
 
