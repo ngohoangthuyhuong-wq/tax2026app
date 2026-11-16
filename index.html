@@ -4410,7 +4410,15 @@ function rrApi(action, params) {
 }
 function rrPost(data) {
   if(!RUIRO_SCRIPT_URL) return Promise.reject(new Error('Chưa cấu hình URL Apps Script'));
-  return fetch(RUIRO_SCRIPT_URL, {method:'POST', body: JSON.stringify(data)}).then(r => r.json());
+  return fetch(RUIRO_SCRIPT_URL, {method:'POST', body: JSON.stringify(data), redirect:'follow'})
+    .then(r => r.text())
+    .then(txt => {
+      try { return JSON.parse(txt); }
+      catch(e) {
+        const preview = txt.substring(0, 300);
+        throw new Error('Phản hồi không phải JSON: ' + preview);
+      }
+    });
 }
 function rrLocalDB() {
   return JSON.parse(localStorage.getItem('smarttax_ruiro_db') || '{"vanban":[],"hoadon":[]}');
@@ -4804,7 +4812,11 @@ function rrTabUpload(ct) {
         const fileName = (getMachineId().replace('ST-','') + '_' + soVb.replace(/\//g,'-') + '_' + mst + '_' + ngay.slice(5).replace('-','') + '.pdf').replace(/\s/g,'');
         const r = await rrPost({action:'uploadPDF', fileBase64: b64, fileName});
         if(r.ok) linkPdf = r.url;
-      } catch(e) { /* PDF upload failed, continue without */ }
+        else if(r.error) msg.innerHTML = '<p style="color:#d32f2f">❌ Upload PDF lỗi: ' + esc(r.error) + '</p>';
+      } catch(e) {
+        console.error('PDF upload error:', e);
+        msg.innerHTML = '<p style="color:#d32f2f">❌ Upload PDF thất bại: ' + esc(e.message) + '</p>';
+      }
     }
 
     const vb = {ma_vb: maVb, so_van_ban: soVb, don_vi_ban_hanh: donVi, ngay_ban_hanh: ngay, trich_yeu: trichYeu, mst_dn: mst, ten_dn: tenDn, link_pdf: linkPdf, nguoi_upload: nguoiUp, ngay_upload: new Date().toISOString(), trang_thai: 'cho_duyet'};
