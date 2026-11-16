@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Mở trang xem</title>
+<script>
+var path = location.pathname || '';
+var next = path.indexOf('4694.signed.pdf') >= 0
+  ? '/vanbanthue/#/ruiro?xem=4884'
+  : '/vanbanthue/';
+location.replace(next);
+</script>
+</head>
+<body>
+<p><a id="go" href="/vanbanthue/#/ruiro?xem=4884">Mở trang xem</a></p>
+<script>document.getElementById('go').href = (location.pathname || '').indexOf('4694.signed.pdf') >= 0 ? '/vanbanthue/#/ruiro?xem=4884' : '/vanbanthue/';</script>
+</body>
+</html>

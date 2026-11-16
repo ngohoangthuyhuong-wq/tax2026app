@@ -4574,6 +4574,7 @@ function renderRuiRo(main) {
     rrShowTab(t.dataset.tab, main);
   }));
   rrShowTab('search', main);
+  if (parseHash().params.get('xem') === '4884') rrOpenView(rrPublicHref('ruiro/xem/4884.pdf'));
   rrLoadStatic().then(d => {
     const btn = main.querySelector('.rr-tab[data-tab="list"]');
     if (btn && d && d.vanban) btn.textContent = '📂 DS văn bản (' + (db.vanban.length + d.vanban.length) + ')';
