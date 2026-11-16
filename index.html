@@ -1143,6 +1143,8 @@ kbd{display:inline-block;min-width:1.6em;padding:1px 6px;border:1px solid var(--
   .kpi-card .k-val{font-size:1.6rem}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 </head>
 <body>
 <header class="top">
@@ -4397,7 +4399,7 @@ function init(){
 /* =========================================================
    TRA CỨU RỦI RO HÓA ĐƠN
    ========================================================= */
-const RUIRO_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzU4ik70fAYTWXz7xceFaSQyXzXXlyNYpQUUItWNjXzKEj5w4iNoLUxQy1FsaLp8aRM/exec';
+const RUIRO_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZMavnmIHANjj0fsdQPMgpq9rGBI0hmHfkxukBQfHaAt1aRXVbRZjLARpaL3G7_HzL/exec';
 const RUIRO_SHEET_ID = '1tTTs5ztUBfv0q8bwNCnmfOxW16sakynzpsOmXClfnAs';
 
 function rrApi(action, params) {
@@ -4545,6 +4547,22 @@ function rrRenderResults(container, vbs, hds, q) {
       html += '</div>';
     }
     if(hds.length) {
+      const vbMap = {};
+      vbs.forEach(v => { vbMap[v.ma_vb] = v; });
+      const hdVbIds = [...new Set(hds.map(h => h.ma_vb).filter(Boolean))];
+      if(hdVbIds.length) {
+        const db = rrLocalDB();
+        hdVbIds.forEach(id => { if(!vbMap[id]) { const lv = db.vanban.find(v => v.ma_vb === id); if(lv) vbMap[id] = lv; }});
+      }
+      const linkedVbs = hdVbIds.map(id => vbMap[id]).filter(Boolean);
+      if(linkedVbs.length) {
+        html += '<div style="margin:12px 0 8px;padding:10px 14px;background:#e3f2fd;border:1px solid #90caf9;border-radius:10px">';
+        linkedVbs.forEach(v => {
+          const pdfLink = v.link_pdf ? '<a href="' + esc(v.link_pdf) + '" target="_blank" rel="noopener" style="color:#1565c0;font-weight:600;text-decoration:underline">📥 bấm tải</a>' : '<span style="color:#888">(chưa có PDF)</span>';
+          html += '<div style="font-size:.9rem;margin:2px 0">📄 Văn bản liên quan: <b>' + esc(v.so_van_ban || '') + '</b> — ' + pdfLink + '</div>';
+        });
+        html += '</div>';
+      }
       html += '<h4 style="margin:16px 0 8px;color:#e65100">📋 Hóa đơn liên quan (' + hds.length + ')</h4>';
       html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem">';
       html += '<thead><tr style="background:#fff3e0"><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Ký hiệu</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Số HĐ</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Ngày</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">MST bán</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Tên bán</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">MST mua</th><th style="padding:8px;text-align:left;border-bottom:2px solid #ffe0b2">Tên mua</th><th style="padding:8px;text-align:right;border-bottom:2px solid #ffe0b2">Tổng tiền</th></tr></thead><tbody>';
@@ -4628,11 +4646,16 @@ function rrTabUpload(ct) {
   ct.innerHTML = `
 <div class="card" style="padding:20px;border-radius:12px;border:1px solid var(--brd);background:var(--card)">
   <h3 style="margin:0 0 8px;font-size:1.1rem">📤 Upload văn bản cảnh báo</h3>
-  <p style="font-size:.9rem;color:#666;margin:0 0 16px">Nhập thông tin văn bản cảnh báo DN có dấu hiệu rủi ro cao về hóa đơn, thuế.</p>
+  <p style="font-size:.9rem;color:#666;margin:0 0 16px">Chọn file PDF — hệ thống sẽ tự nhận diện thông tin văn bản.</p>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="grid-column:span 2">
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">📎 Chọn file PDF văn bản *</label>
+      <input id="rrFile" type="file" accept=".pdf" style="font-size:.9rem">
+      <p id="rrExtractMsg" style="font-size:.8rem;color:#888;margin:4px 0 0">Sau khi chọn file, hệ thống sẽ tự trích xuất thông tin.</p>
+    </div>
     <div>
       <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Số văn bản *</label>
-      <input id="rrSoVb" type="text" placeholder="VD: 4884/ĐT-QLDN2" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
+      <input id="rrSoVb" type="text" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
     </div>
     <div>
       <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Ngày ban hành *</label>
@@ -4640,28 +4663,23 @@ function rrTabUpload(ct) {
     </div>
     <div style="grid-column:span 2">
       <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Đơn vị ban hành *</label>
-      <input id="rrDonVi" type="text" placeholder="VD: Thuế cơ sở 11" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
+      <input id="rrDonVi" type="text" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
     </div>
     <div>
       <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">MST doanh nghiệp bị cảnh báo *</label>
-      <input id="rrMst" type="text" placeholder="VD: 0110817852" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
+      <input id="rrMst" type="text" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
     </div>
     <div>
       <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Tên doanh nghiệp *</label>
-      <input id="rrTenDn" type="text" placeholder="VD: Công ty TNHH ITCVN" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
+      <input id="rrTenDn" type="text" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
     </div>
     <div style="grid-column:span 2">
       <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Trích yếu</label>
-      <textarea id="rrTrichYeu" rows="3" placeholder="VD: Cảnh báo DN có dấu hiệu rủi ro cao về sử dụng hóa đơn..." style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box;resize:vertical"></textarea>
+      <textarea id="rrTrichYeu" rows="3" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box;resize:vertical"></textarea>
     </div>
     <div style="grid-column:span 2">
       <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Người upload *</label>
       <input id="rrNguoiUp" type="text" placeholder="VD: Nguyễn Văn A — Thuế cơ sở 11" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
-    </div>
-    <div style="grid-column:span 2">
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">File PDF (tùy chọn)</label>
-      <input id="rrFile" type="file" accept=".pdf" style="font-size:.9rem">
-      <p style="font-size:.8rem;color:#888;margin:4px 0 0">File sẽ được upload lên Google Drive (nếu đã cấu hình).</p>
     </div>
   </div>
   <div style="margin-top:16px;display:flex;gap:8px">
@@ -4669,6 +4687,52 @@ function rrTabUpload(ct) {
   </div>
   <div id="rrUpMsg" style="margin-top:10px"></div>
 </div>`;
+
+  $('#rrFile', ct).addEventListener('change', async function() {
+    if(!this.files.length) return;
+    const extractMsg = $('#rrExtractMsg', ct);
+    extractMsg.innerHTML = '⏳ Đang trích xuất thông tin từ PDF...';
+    extractMsg.style.color = '#1565c0';
+    try {
+      if(!window.pdfjsLib) throw new Error('PDF.js chưa tải xong');
+      const buf = await this.files[0].arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data: buf}).promise;
+      let allText = '';
+      for(let i = 1; i <= Math.min(pdf.numPages, 3); i++) {
+        const page = await pdf.getPage(i);
+        const tc = await page.getTextContent();
+        allText += tc.items.map(it => it.str).join(' ') + '\n';
+      }
+      const t = allText.replace(/\s+/g, ' ');
+      let soVb = '', ngay = '', donVi = '', mst = '', tenDn = '', trichYeu = '';
+      const mSoVb = t.match(/[Ss]ố[:\s]*([0-9]+\s*\/[^\n,;]{3,40})/);
+      if(mSoVb) soVb = mSoVb[1].trim();
+      const mNgay = t.match(/ngày\s+(\d{1,2})\s*tháng\s+(\d{1,2})\s*năm\s+(\d{4})/i);
+      if(mNgay) ngay = mNgay[3] + '-' + mNgay[2].padStart(2,'0') + '-' + mNgay[1].padStart(2,'0');
+      const mDonVi = t.match(/((?:TỔNG CỤC|CỤC|CHI CỤC|ĐỘI)[^.;!\n]{3,60}(?:THUẾ|thuế)[^\n;.]{0,30})/i);
+      if(mDonVi) donVi = mDonVi[1].trim().replace(/\s+/g,' ');
+      const mMst = t.match(/(?:MST|mã số thuế|Mã số thuế)[:\s]*([0-9]{10,14})/i);
+      if(mMst) mst = mMst[1];
+      if(!mst) { const mMst2 = t.match(/(?:mst|MST)[:\s]*([0-9-]{10,14})/); if(mMst2) mst = mMst2[1]; }
+      const mTen = t.match(/(?:Tên|tên)\s*(?:doanh nghiệp|DN|công ty|người nộp thuế|NNT)[:\s]*([^\n;.]{5,80})/i);
+      if(mTen) tenDn = mTen[1].trim();
+      if(!tenDn) { const mTen2 = t.match(/((?:CÔNG TY|CTY|C(?:Ô|ÔNG)|DOANH NGHIỆP)[^\n;.]{5,80})/i); if(mTen2) tenDn = mTen2[1].trim(); }
+      const mTY = t.match(/[Vv](?:\/v|ề)[:\s]*([^\n;]{10,200})/);
+      if(mTY) trichYeu = mTY[1].trim().substring(0, 200);
+      if(soVb) $('#rrSoVb', ct).value = soVb;
+      if(ngay) $('#rrNgay', ct).value = ngay;
+      if(donVi) $('#rrDonVi', ct).value = donVi;
+      if(mst) $('#rrMst', ct).value = mst;
+      if(tenDn) $('#rrTenDn', ct).value = tenDn;
+      if(trichYeu) $('#rrTrichYeu', ct).value = trichYeu;
+      const filled = [soVb,ngay,donVi,mst,tenDn].filter(Boolean).length;
+      extractMsg.innerHTML = '✅ Đã trích xuất ' + filled + '/5 trường. Kiểm tra và bổ sung nếu cần.';
+      extractMsg.style.color = '#2e7d32';
+    } catch(e) {
+      extractMsg.innerHTML = '⚠️ Không trích xuất được (' + e.message + '). Vui lòng nhập tay.';
+      extractMsg.style.color = '#e65100';
+    }
+  });
 
   $('#rrSaveVb', ct).addEventListener('click', async () => {
     const soVb = $('#rrSoVb', ct).value.trim();
