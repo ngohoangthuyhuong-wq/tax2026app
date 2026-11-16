@@ -4459,8 +4459,49 @@ function rrPublicHref(url) {
   const base = location.pathname.replace(/[^/]*$/, '');
   return base + String(url).replace(/^\//, '');
 }
-function rrFileLink() {
-  return '';
+function rrOpenView(url) {
+  if (!url) return;
+  let abs = url;
+  try { abs = new URL(url, location.href).href; } catch (e) {}
+  const same = abs.indexOf(location.origin) === 0;
+  const src = abs + (abs.indexOf('#') < 0 ? '#' : '&') + 'toolbar=0&navpanes=0';
+  if (!same) {
+    window.open(src, '_blank', 'noopener');
+    return;
+  }
+  let box = document.getElementById('rrViewBox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'rrViewBox';
+    box.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;flex-direction:column;padding:16px';
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:#fff"><b>Xem bản gốc</b><button type="button" id="rrViewClose" class="btn sm">Đóng</button></div><iframe id="rrViewFrame" title="Xem bản gốc" style="flex:1;width:100%;border:0;background:#fff;border-radius:8px"></iframe>';
+    document.body.appendChild(box);
+    box.addEventListener('click', function (e) {
+      if (e.target === box || e.target.id === 'rrViewClose') {
+        box.style.display = 'none';
+        const frame = document.getElementById('rrViewFrame');
+        if (frame) frame.src = 'about:blank';
+      }
+    });
+  }
+  document.getElementById('rrViewFrame').src = src;
+  box.style.display = 'flex';
+}
+function rrFileLink(url) {
+  if (!url) return '';
+  const hosted = url.indexOf('ruiro/') === 0;
+  const pdf = hosted || /\.pdf($|\?)/i.test(url);
+  if (!pdf) return '';
+  return '<button type="button" class="btn sm rr-view" data-u="' + esc(rrPublicHref(url)) + '" style="margin-top:6px;height:30px;font-size:.82rem">Xem</button>';
+}
+if (!window.__rrViewBound) {
+  window.__rrViewBound = true;
+  document.addEventListener('click', function (e) {
+    const btn = e.target.closest && e.target.closest('.rr-view');
+    if (!btn) return;
+    e.preventDefault();
+    rrOpenView(btn.getAttribute('data-u'));
+  });
 }
 function rrDocGroups(rows) {
   const map = new Map();
@@ -4627,6 +4668,7 @@ function rrRenderResults(container, vbs, hds, q) {
           <div style="font-size:.9rem;margin:4px 0"><b>DN:</b> ${esc(v.ten_dn)} — MST: <code>${esc(rrFmtMST(v.mst_dn))}</code></div>
           <div style="font-size:.85rem;color:#555">${esc(v.don_vi || v.don_vi_ban_hanh || '')}</div>
           <div style="font-size:.85rem;color:#666;margin-top:4px">${esc(v.trich_yeu || '')}</div>
+          ${v.link_pdf ? '<div style="margin-top:4px">' + rrFileLink(v.link_pdf) + '</div>' : ''}
         </div>`;
       });
       html += '</div>';
@@ -4643,7 +4685,8 @@ function rrRenderResults(container, vbs, hds, q) {
       if(linkedVbs.length) {
         html += '<div style="margin:12px 0 8px;padding:10px 14px;background:#e3f2fd;border:1px solid #90caf9;border-radius:10px">';
         linkedVbs.forEach(v => {
-          html += '<div style="font-size:.9rem;margin:2px 0">📄 Văn bản liên quan: <b>' + esc(v.so_van_ban || '') + '</b></div>';
+          const pdfLink = v.link_pdf ? rrFileLink(v.link_pdf) : '<span style="color:#888">(chưa có PDF)</span>';
+          html += '<div style="font-size:.9rem;margin:2px 0">📄 Văn bản liên quan: <b>' + esc(v.so_van_ban || '') + '</b> — ' + pdfLink + '</div>';
         });
         html += '</div>';
       }
@@ -5162,6 +5205,8 @@ function rrTabList(ct) {
   if(groups.length) {
     html += '<div style="margin-bottom:16px"><h3 style="margin:0 0 8px;font-size:1.1rem">📂 Danh sách công khai — ' + data.vanban.length + ' doanh nghiệp, ' + groups.length + ' văn bản</h3>';
     if(data.missing && data.missing.length) html += '<p class="muted" style="font-size:.85rem;margin:0 0 8px">Chưa đưa vào: ' + data.missing.map(esc).join(' · ') + '</p>';
+    const hosted = groups.find(g => g.link && g.link.indexOf('ruiro/') === 0);
+    if(hosted) html += '<div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;padding:12px;margin-bottom:12px"><b>Bản gốc đã up:</b> ' + esc(hosted.so) + ' — ' + esc(hosted.rows[0] && hosted.rows[0].ten || '') + '<div style="margin-top:6px">' + rrFileLink(hosted.link) + '</div></div>';
     html += '<input id="rrListQ" type="search" placeholder="Lọc MST hoặc tên doanh nghiệp trong danh sách..." style="width:100%;box-sizing:border-box;padding:10px 14px;border:1.5px solid var(--brd);border-radius:8px;margin-bottom:12px">';
     html += '<div style="display:flex;flex-direction:column;gap:8px">';
     groups.forEach(g => {
@@ -5170,6 +5215,7 @@ function rrTabList(ct) {
         <summary style="cursor:pointer;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(g.so)}</b><span style="font-size:.8rem;background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:12px">${g.rows.length} DN</span></summary>
         <div style="font-size:.85rem;color:#666;margin-top:8px">${esc(g.dv)} — ${esc(rrFmtDate(g.ngay))}</div>
         ${g.trich ? '<div style="font-size:.85rem;color:#888;margin-top:2px">' + esc(g.trich) + '</div>' : ''}
+        ${rrFileLink(g.link)}
         <div style="overflow:auto;max-height:320px;margin-top:8px"><table style="width:100%;border-collapse:collapse;font-size:.85rem"><tbody>
         ${g.rows.map(r => '<tr><td style="padding:4px 8px;white-space:nowrap"><code>' + esc(rrFmtMST(r.mst)) + '</code></td><td style="padding:4px 8px">' + esc(r.ten) + '</td></tr>').join('')}
         </tbody></table></div>
@@ -5199,6 +5245,7 @@ function rrTabList(ct) {
         ${v.ngay_upload ? '<span style="font-size:.8rem;color:#999">🕐 ' + new Date(v.ngay_upload).toLocaleDateString('vi-VN') + '</span>' : ''}
         ${v.trang_thai !== 'da_duyet' ? '<button class="btn sm rr-approve" data-idx="' + i + '" type="button" style="font-size:.78rem;padding:2px 8px" title="Duyệt">✅ Duyệt</button>' : ''}
       </div>
+      ${rrFileLink(v.link_pdf)}
     </div>`;
   });
   html += '</div>';
