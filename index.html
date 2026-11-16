@@ -1145,6 +1145,7 @@ kbd{display:inline-block;min-width:1.6em;padding:1px 6px;border:1px solid var(--
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
 <header class="top">
@@ -4727,9 +4728,32 @@ function rrTabUpload(ct) {
       if(mst) $('#rrMst', ct).value = mst;
       if(tenDn) $('#rrTenDn', ct).value = tenDn;
       if(trichYeu) $('#rrTrichYeu', ct).value = trichYeu;
-      const filled = [soVb,ngay,donVi,mst,tenDn].filter(Boolean).length;
+      let filled = [soVb,ngay,donVi,mst,tenDn].filter(Boolean).length;
+      if(filled === 0 && window.Tesseract) {
+        extractMsg.innerHTML = '🔍 PDF scan — đang OCR trang 1 (có thể mất 15-30 giây)...';
+        extractMsg.style.color = '#1565c0';
+        try {
+          const page1 = await pdf.getPage(1);
+          const vp = page1.getViewport({scale: 2});
+          const canvas = document.createElement('canvas');
+          canvas.width = vp.width; canvas.height = vp.height;
+          const ctx2 = canvas.getContext('2d');
+          await page1.render({canvasContext: ctx2, viewport: vp}).promise;
+          const imgData = canvas.toDataURL('image/png');
+          const {data} = await Tesseract.recognize(imgData, 'vie', {logger: m => { if(m.status === 'recognizing text') extractMsg.innerHTML = '🔍 OCR: ' + Math.round((m.progress||0)*100) + '%...'; }});
+          const ocrText = data.text || '';
+          const ot = ocrText.replace(/\s+/g, ' ');
+          if(!soVb) { const m2 = ot.match(/[Ss][oôố][:\s]*([0-9]+\s*\/[^\n,;]{3,40})/); if(m2) { soVb = m2[1].trim(); $('#rrSoVb', ct).value = soVb; }}
+          if(!ngay) { const m2 = ot.match(/ngày\s+(\d{1,2})\s*tháng\s+(\d{1,2})\s*năm\s+(\d{4})/i); if(m2) { ngay = m2[3]+'-'+m2[2].padStart(2,'0')+'-'+m2[1].padStart(2,'0'); $('#rrNgay', ct).value = ngay; }}
+          if(!donVi) { const m2 = ot.match(/((?:TỔNG CỤC|CỤC|CHI CỤC|ĐỘI|Cục|Chi cục)[^.;!\n]{3,60}(?:THUẾ|thuế|Thuế)[^\n;.]{0,30})/i); if(m2) { donVi = m2[1].trim().replace(/\s+/g,' '); $('#rrDonVi', ct).value = donVi; }}
+          if(!mst) { const m2 = ot.match(/(?:MST|mã số thuế|Mã số thuế|mst)[:\s]*([0-9]{10,14})/i); if(m2) { mst = m2[1]; $('#rrMst', ct).value = mst; }}
+          if(!tenDn) { const m2 = ot.match(/((?:CÔNG TY|CTY|Công ty|DOANH NGHIỆP)[^\n;.]{5,80})/i); if(m2) { tenDn = m2[1].trim(); $('#rrTenDn', ct).value = tenDn; }}
+          if(!trichYeu) { const m2 = ot.match(/[Vv](?:\/v|ề)[:\s]*([^\n;]{10,200})/); if(m2) { trichYeu = m2[1].trim().substring(0,200); $('#rrTrichYeu', ct).value = trichYeu; }}
+          filled = [soVb,ngay,donVi,mst,tenDn].filter(Boolean).length;
+        } catch(ocrErr) { /* OCR failed, continue */ }
+      }
       if(filled === 0) {
-        extractMsg.innerHTML = '⚠️ PDF scan (ảnh) — không trích xuất được text. Vui lòng nhập tay các trường.';
+        extractMsg.innerHTML = '⚠️ Không nhận diện được thông tin. Vui lòng nhập tay.';
         extractMsg.style.color = '#e65100';
       } else {
         extractMsg.innerHTML = '✅ Đã trích xuất ' + filled + '/5 trường. Kiểm tra và bổ sung nếu cần.';
