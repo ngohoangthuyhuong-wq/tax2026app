@@ -5225,7 +5225,7 @@ function rrTabList(ct) {
     html += '</div></div>';
   }
   if(db.vanban.length) {
-  html += '<div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0;font-size:1.1rem">📂 Đã lưu trên máy — ' + db.vanban.length + ' văn bản, ' + db.hoadon.length + ' hóa đơn</h3><button id="rrExport" class="btn sm" type="button">📥 Xuất JSON</button></div>';
+  html += '<div style="margin-bottom:12px"><h3 style="margin:0;font-size:1.1rem">📂 Đã lưu trên máy — ' + db.vanban.length + ' văn bản, ' + db.hoadon.length + ' hóa đơn</h3></div>';
   html += '<div style="display:flex;flex-direction:column;gap:8px">';
   db.vanban.forEach((v, i) => {
     const hdCount = db.hoadon.filter(h => h.ma_vb === v.ma_vb).length;
@@ -5271,14 +5271,6 @@ function rrTabList(ct) {
     rrTabList(ct);
   }));
 
-  const expBtn = $('#rrExport', ct);
-  if(expBtn) expBtn.addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(db, null, 2)], {type:'application/json'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'smarttax_ruiro_' + new Date().toISOString().slice(0,10) + '.json';
-    a.click();
-  });
   const listQ = $('#rrListQ', ct);
   if(listQ) listQ.addEventListener('input', () => {
     const q = listQ.value.trim().toUpperCase();
