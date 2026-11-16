@@ -4742,6 +4742,7 @@ function rrCompaniesFromText(text) {
   const out = [];
   const seen = new Set();
   String(text || '').split(/\n/).forEach(line => {
+    if (/cccd|cmnd|căn cước|can cuoc|hộ khẩu|ho khau/i.test(line)) return;
     const hits = line.match(/\d[\d.\s-]{7,16}\d/g) || [];
     hits.forEach(raw => {
       const mst = rrNormMstUp(raw);
@@ -4803,16 +4804,56 @@ function rrShowExtracted(ct, companies) {
   box.innerHTML = html;
 }
 
+async function rrReadTable(canvas) {
+  if (!window.Tesseract || !canvas.width) return [];
+  const w = canvas.width, h = canvas.height;
+  const xMax = Math.floor(w * 0.45);
+  const y0 = Math.floor(h * 0.22), y1 = Math.floor(h * 0.9);
+  const sample = canvas.getContext('2d').getImageData(0, y0, xMax, Math.max(1, y1 - y0));
+  const cols = new Array(xMax).fill(0);
+  for (let x = 0; x < xMax; x++) {
+    for (let y = 0; y < sample.height; y += 2) {
+      const i = (y * xMax + x) * 4;
+      if (sample.data[i] < 150) cols[x]++;
+    }
+  }
+  const peak = Math.max.apply(null, cols) * 0.28;
+  const bands = [];
+  let start = -1;
+  for (let x = 0; x < xMax; x++) {
+    const on = cols[x] > peak;
+    if (on && start < 0) start = x;
+    if (!on && start >= 0) { if (x - start >= 70 && x - start <= 180) bands.push([start, x]); start = -1; }
+  }
+  if (!bands.length) return [];
+  const band = bands[0];
+  function crop(x0, x1) {
+    const c = document.createElement('canvas');
+    const cw = Math.max(1, x1 - x0), ch = Math.floor(h * 0.84);
+    c.width = cw; c.height = ch;
+    c.getContext('2d').drawImage(canvas, x0, Math.floor(h * 0.14), cw, ch, 0, 0, cw, ch);
+    return c.toDataURL('image/png');
+  }
+  const mstText = (await Tesseract.recognize(crop(Math.max(0, band[0] - 4), band[1] + 8), 'eng')).data.text || '';
+  const nameText = (await Tesseract.recognize(crop(band[1] + 8, Math.min(w - 2, band[1] + 780)), 'vie')).data.text || '';
+  const msts = mstText.split(/\n/).map(s => s.replace(/\D/g, '')).filter(s => s.length === 10);
+  const tens = nameText.split(/\n/).map(s => s.trim()).filter(s => /công ty|cong ty|tnhh|cổ phần|cty/i.test(s));
+  const n = Math.min(msts.length, tens.length);
+  const lines = [];
+  for (let i = 0; i < n; i++) lines.push(msts[msts.length - n + i] + ' ' + tens[tens.length - n + i]);
+  return lines;
+}
+
 function rrTabUpload(ct) {
   const db = rrLocalDB();
   ct.innerHTML = `
 <div class="card" style="padding:20px;border-radius:12px;border:1px solid var(--brd);background:var(--card)">
   <h3 style="margin:0 0 8px;font-size:1.1rem">📤 Upload văn bản cảnh báo</h3>
-  <p style="font-size:.9rem;color:#666;margin:0 0 16px">Chọn PDF hoặc Excel. Một công văn một doanh nghiệp thì điền form. File danh sách thì lấy hết MST và tên trong file.</p>
+  <p style="font-size:.9rem;color:#666;margin:0 0 16px">Chọn PDF, Excel hoặc ảnh chụp. File có chữ thì đọc chữ. File scan hoặc ảnh thì tự nhận chữ, rồi lấy hết MST và tên. Số CCCD và địa chỉ cá nhân không được lưu.</p>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
     <div style="grid-column:span 2">
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">📎 Chọn PDF hoặc Excel *</label>
-      <input id="rrFile" type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf" style="font-size:.9rem">
+      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">📎 Chọn PDF, Excel hoặc ảnh *</label>
+      <input id="rrFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,image/*,application/pdf" multiple style="font-size:.9rem">
       <p id="rrExtractMsg" style="font-size:.8rem;color:#888;margin:4px 0 0">Sau khi chọn file, hệ thống sẽ tự trích xuất thông tin.</p>
       <div id="rrExtracted"></div>
     </div>
@@ -4875,6 +4916,24 @@ function rrTabUpload(ct) {
         extractMsg.style.color = ct._rrCos.length ? '#2e7d32' : '#e65100';
         return;
       }
+      const imageFiles = [...this.files].filter(f => /\.(jpe?g|png|webp)$/i.test(f.name));
+      if(imageFiles.length && imageFiles.length === this.files.length) {
+        if(!window.Tesseract) throw new Error('Bộ nhận chữ chưa tải xong');
+        const chunks = [];
+        for(let i = 0; i < imageFiles.length; i++) {
+          extractMsg.innerHTML = '🔍 Đang nhận chữ ảnh ' + (i + 1) + '/' + imageFiles.length + '...';
+          const url = URL.createObjectURL(imageFiles[i]);
+          try {
+            const {data} = await Tesseract.recognize(url, 'vie', {logger: m => { if(m.status === 'recognizing text') extractMsg.innerHTML = '🔍 Ảnh ' + (i + 1) + '/' + imageFiles.length + ': ' + Math.round((m.progress || 0) * 100) + '%'; }});
+            chunks.push(data.text || '');
+          } finally { URL.revokeObjectURL(url); }
+        }
+        ct._rrCos = rrCompaniesFromText(chunks.join('\n'));
+        rrShowExtracted(ct, ct._rrCos);
+        extractMsg.innerHTML = ct._rrCos.length ? '✅ Đã lấy ' + ct._rrCos.length + ' doanh nghiệp từ ảnh.' : '⚠️ Không thấy MST trên ảnh.';
+        extractMsg.style.color = ct._rrCos.length ? '#2e7d32' : '#e65100';
+        return;
+      }
       if(!window.pdfjsLib) throw new Error('PDF.js chưa tải xong');
       const pdf = await pdfjsLib.getDocument({data: buf.slice(0)}).promise;
       const pageLines = [];
@@ -4891,6 +4950,11 @@ function rrTabUpload(ct) {
             await page.render({canvasContext: canvas.getContext('2d'), viewport: vp}).promise;
             const {data} = await Tesseract.recognize(canvas.toDataURL('image/png'), 'vie', {logger: m => { if(m.status === 'recognizing text') extractMsg.innerHTML = '🔍 OCR trang ' + i + '/' + pdf.numPages + ': ' + Math.round((m.progress || 0) * 100) + '%'; }});
             lines = String(data.text || '').split(/\n/).map(s => s.trim()).filter(Boolean);
+            if (rrCompaniesFromText(lines.join('\n')).length < 8) {
+              extractMsg.innerHTML = '🔍 Đang đọc cột MST trang ' + i + '/' + pdf.numPages + '...';
+              const tableLines = await rrReadTable(canvas);
+              if (tableLines.length > rrCompaniesFromText(lines.join('\n')).length) lines = tableLines;
+            }
           } catch(ocrErr) { /* giữ các dòng đã có */ }
         }
         pageLines.push(lines);
