@@ -4497,16 +4497,26 @@ function rrLocalHits(q) {
   };
 }
 function rrMerge() {
-  const seen = new Set();
+  const seen = new Map();
   const out = [];
   Array.from(arguments).forEach(list => {
     (list || []).forEach(row => {
       const isHd = row && (row.ky_hieu_hd != null || row.ky_hieu != null || row.so_hoa_don != null || row.so_hd != null || row.mst_ban != null || row.mst_mua != null) && !row.so_van_ban;
       const key = isHd
-        ? ['hd', row.ma_vb || '', row.ky_hieu_hd || row.ky_hieu || '', row.so_hoa_don || row.so_hd || '', row.mst_ban || '', row.mst_mua || '', row.ngay_hoa_don || row.ngay || '', row.tong_tien || row.tong || ''].join('|')
-        : (row.ma_vb || [row.mst_dn, row.so_van_ban, row.ten_dn].join('|'));
-      if (seen.has(key)) return;
-      seen.add(key);
+        ? ['hd', row.ky_hieu_hd || row.ky_hieu || '', row.so_hoa_don || row.so_hd || '', String(row.mst_ban || ''), String(row.mst_mua || ''), row.ngay_hoa_don || row.ngay || '', String(row.tong_tien || row.tong || '')].join('|')
+        : [String(row.mst_dn || '').replace(/\D/g, ''), row.so_van_ban || ''].join('|');
+      if (seen.has(key)) {
+        const prev = seen.get(key);
+        const prevJunk = !prev.ten_dn || /^[-–]?\s*mã số thuế/i.test(String(prev.ten_dn));
+        const curOk = row.ten_dn && !/^[-–]?\s*mã số thuế/i.test(String(row.ten_dn));
+        if (prevJunk && curOk) {
+          const i = out.indexOf(prev);
+          if (i >= 0) out[i] = row;
+          seen.set(key, row);
+        }
+        return;
+      }
+      seen.set(key, row);
       out.push(row);
     });
   });
