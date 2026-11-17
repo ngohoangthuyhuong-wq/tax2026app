@@ -4786,6 +4786,25 @@ function rrNormMstUp(raw) {
   if (s.length !== 10 && s.length !== 13) return '';
   return s;
 }
+function rrMetaFromText(text) {
+  const t = String(text || '').replace(/\s+/g, ' ');
+  let soVb = '', ngay = '', donVi = '', mst = '', tenDn = '', trichYeu = '';
+  const mSoVb = t.match(/[Ss]ố[:\s]*([0-9]+\s*\/[^\n,;]{3,40})/);
+  if (mSoVb) soVb = mSoVb[1].trim();
+  const mNgay = t.match(/ngày\s+(\d{1,2})\s*tháng\s+(\d{1,2})\s*năm\s+(\d{4})/i);
+  if (mNgay) ngay = mNgay[3] + '-' + mNgay[2].padStart(2, '0') + '-' + mNgay[1].padStart(2, '0');
+  const mDonVi = t.match(/((?:TỔNG CỤC|CỤC|CHI CỤC|ĐỘI)[^.;!\n]{3,60}(?:THUẾ|thuế)[^\n;.]{0,30})/i);
+  if (mDonVi) donVi = mDonVi[1].trim().replace(/\s+/g, ' ');
+  const mMst = t.match(/(?:MST|mã số thuế|Mã số thuế)[:\s]*([0-9]{10,14})/i);
+  if (mMst) mst = mMst[1];
+  if (!mst) { const mMst2 = t.match(/(?:mst|MST)[:\s]*([0-9-]{10,14})/); if (mMst2) mst = mMst2[1]; }
+  const mTen = t.match(/(?:Tên|tên)\s*(?:doanh nghiệp|DN|công ty|người nộp thuế|NNT)[:\s]*([^\n;.]{5,80})/i);
+  if (mTen) tenDn = mTen[1].trim();
+  if (!tenDn) { const mTen2 = t.match(/((?:CÔNG TY|CTY|C(?:Ô|ÔNG)|DOANH NGHIỆP)[^\n;.]{5,80})/i); if (mTen2) tenDn = mTen2[1].trim(); }
+  const mTY = t.match(/[Vv](?:\/v|ề)[:\s]*([^\n;]{10,200})/);
+  if (mTY) trichYeu = mTY[1].trim().substring(0, 200);
+  return {soVb, ngay, donVi, mst, tenDn, trichYeu};
+}
 function rrCompaniesFromText(text) {
   const out = [];
   const seen = new Set();
@@ -4829,7 +4848,7 @@ function rrLoadSheetJs() {
     document.head.appendChild(s);
   });
 }
-async function rrCompaniesFromWorkbook(buf) {
+async function rrWorkbookPack(buf) {
   const XLSX = await rrLoadSheetJs();
   const wb = XLSX.read(buf, {type: 'array'});
   const lines = [];
@@ -4837,7 +4856,8 @@ async function rrCompaniesFromWorkbook(buf) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, raw: false, defval: ''});
     rows.forEach(row => lines.push((row || []).join(' | ')));
   });
-  return rrCompaniesFromText(lines.join('\n'));
+  const text = lines.join('\n');
+  return {companies: rrCompaniesFromText(text), text};
 }
 function rrShowExtracted(ct, companies) {
   const box = $('#rrExtracted', ct);
@@ -4898,41 +4918,13 @@ function rrTabUpload(ct) {
 <div class="card" style="padding:20px;border-radius:12px;border:1px solid var(--brd);background:var(--card)">
   <h3 style="margin:0 0 8px;font-size:1.1rem">📤 Upload văn bản cảnh báo</h3>
   <p style="font-size:.9rem;color:#666;margin:0 0 16px">Chọn PDF, Excel hoặc ảnh chụp. File có chữ thì đọc chữ. File scan hoặc ảnh thì tự nhận chữ, rồi lấy hết MST và tên. Số CCCD và địa chỉ cá nhân không được lưu.</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    <div style="grid-column:span 2">
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">📎 Chọn PDF, Excel hoặc ảnh *</label>
-      <input id="rrFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,image/*,application/pdf" multiple style="font-size:.9rem">
-      <p id="rrExtractMsg" style="font-size:.8rem;color:#888;margin:4px 0 0">Sau khi chọn file, hệ thống sẽ tự trích xuất thông tin.</p>
-      <div id="rrExtracted"></div>
-    </div>
-    <div>
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Số văn bản *</label>
-      <input id="rrSoVb" type="text" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
-    </div>
-    <div>
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Ngày ban hành *</label>
-      <input id="rrNgay" type="date" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
-    </div>
-    <div style="grid-column:span 2">
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Đơn vị ban hành *</label>
-      <input id="rrDonVi" type="text" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
-    </div>
-    <div>
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">MST doanh nghiệp bị cảnh báo *</label>
-      <input id="rrMst" type="text" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
-    </div>
-    <div>
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Tên doanh nghiệp *</label>
-      <input id="rrTenDn" type="text" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
-    </div>
-    <div style="grid-column:span 2">
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Trích yếu</label>
-      <textarea id="rrTrichYeu" rows="3" placeholder="Tự nhận từ PDF" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box;resize:vertical"></textarea>
-    </div>
-    <div style="grid-column:span 2">
-      <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Người upload *</label>
-      <input id="rrNguoiUp" type="text" placeholder="VD: Nguyễn Văn A — Thuế cơ sở 11" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
-    </div>
+  <div>
+    <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">📎 Chọn PDF, Excel hoặc ảnh *</label>
+    <input id="rrFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,image/*,application/pdf" multiple style="font-size:.9rem">
+    <p id="rrExtractMsg" style="font-size:.8rem;color:#888;margin:4px 0 0">Chọn file. Số văn bản, ngày, đơn vị, MST và tên được lấy từ file.</p>
+    <div id="rrExtracted"></div>
+    <label style="font-size:.85rem;font-weight:600;display:block;margin:12px 0 4px">Người upload *</label>
+    <input id="rrNguoiUp" type="text" placeholder="VD: Nguyễn Văn A — Thuế cơ sở 11" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px;box-sizing:border-box">
   </div>
   <div style="margin-top:16px;display:flex;gap:8px">
     <button id="rrSaveVb" class="btn primary" type="button">💾 Lưu văn bản</button>
@@ -4946,19 +4938,26 @@ function rrTabUpload(ct) {
     const file = this.files[0];
     const lower = file.name.toLowerCase();
     ct._rrCos = [];
+    ct._rrMeta = {soVb:'', ngay:'', donVi:'', mst:'', tenDn:'', trichYeu:''};
     extractMsg.innerHTML = '⏳ Đang đọc file...';
     extractMsg.style.color = '#1565c0';
     try {
       const buf = await file.arrayBuffer();
       if(/\.(xlsx|xls)$/.test(lower)) {
-        ct._rrCos = await rrCompaniesFromWorkbook(buf);
+        const pack = await rrWorkbookPack(buf);
+        ct._rrCos = pack.companies;
+        ct._rrMeta = rrMetaFromText(pack.text);
+        rrApplyMeta(ct);
         rrShowExtracted(ct, ct._rrCos);
         extractMsg.innerHTML = ct._rrCos.length ? '✅ Đã lấy ' + ct._rrCos.length + ' doanh nghiệp từ Excel.' : '⚠️ Không thấy MST trong file Excel.';
         extractMsg.style.color = ct._rrCos.length ? '#2e7d32' : '#e65100';
         return;
       }
       if(/\.(csv|txt)$/.test(lower)) {
-        ct._rrCos = rrCompaniesFromText(new TextDecoder('utf-8').decode(buf));
+        const text = new TextDecoder('utf-8').decode(buf);
+        ct._rrCos = rrCompaniesFromText(text);
+        ct._rrMeta = rrMetaFromText(text);
+        rrApplyMeta(ct);
         rrShowExtracted(ct, ct._rrCos);
         extractMsg.innerHTML = ct._rrCos.length ? '✅ Đã lấy ' + ct._rrCos.length + ' doanh nghiệp từ file.' : '⚠️ Không thấy MST trong file.';
         extractMsg.style.color = ct._rrCos.length ? '#2e7d32' : '#e65100';
@@ -4976,7 +4975,10 @@ function rrTabUpload(ct) {
             chunks.push(data.text || '');
           } finally { URL.revokeObjectURL(url); }
         }
-        ct._rrCos = rrCompaniesFromText(chunks.join('\n'));
+        const imageText = chunks.join('\n');
+        ct._rrCos = rrCompaniesFromText(imageText);
+        ct._rrMeta = rrMetaFromText(imageText);
+        rrApplyMeta(ct);
         rrShowExtracted(ct, ct._rrCos);
         extractMsg.innerHTML = ct._rrCos.length ? '✅ Đã lấy ' + ct._rrCos.length + ' doanh nghiệp từ ảnh.' : '⚠️ Không thấy MST trên ảnh.';
         extractMsg.style.color = ct._rrCos.length ? '#2e7d32' : '#e65100';
@@ -5009,68 +5011,48 @@ function rrTabUpload(ct) {
       }
       const allLines = pageLines.flat();
       ct._rrCos = rrCompaniesFromText(allLines.join('\n'));
+      ct._rrMeta = rrMetaFromText(allLines.slice(0, 80).join(' '));
+      rrApplyMeta(ct);
       rrShowExtracted(ct, ct._rrCos);
-      const head = allLines.slice(0, 80).join(' ').replace(/\s+/g, ' ');
-      let allText = head;
-      const t = allText.replace(/\s+/g, ' ');
-      let soVb = '', ngay = '', donVi = '', mst = '', tenDn = '', trichYeu = '';
-      const mSoVb = t.match(/[Ss]ố[:\s]*([0-9]+\s*\/[^\n,;]{3,40})/);
-      if(mSoVb) soVb = mSoVb[1].trim();
-      const mNgay = t.match(/ngày\s+(\d{1,2})\s*tháng\s+(\d{1,2})\s*năm\s+(\d{4})/i);
-      if(mNgay) ngay = mNgay[3] + '-' + mNgay[2].padStart(2,'0') + '-' + mNgay[1].padStart(2,'0');
-      const mDonVi = t.match(/((?:TỔNG CỤC|CỤC|CHI CỤC|ĐỘI)[^.;!\n]{3,60}(?:THUẾ|thuế)[^\n;.]{0,30})/i);
-      if(mDonVi) donVi = mDonVi[1].trim().replace(/\s+/g,' ');
-      const mMst = t.match(/(?:MST|mã số thuế|Mã số thuế)[:\s]*([0-9]{10,14})/i);
-      if(mMst) mst = mMst[1];
-      if(!mst) { const mMst2 = t.match(/(?:mst|MST)[:\s]*([0-9-]{10,14})/); if(mMst2) mst = mMst2[1]; }
-      const mTen = t.match(/(?:Tên|tên)\s*(?:doanh nghiệp|DN|công ty|người nộp thuế|NNT)[:\s]*([^\n;.]{5,80})/i);
-      if(mTen) tenDn = mTen[1].trim();
-      if(!tenDn) { const mTen2 = t.match(/((?:CÔNG TY|CTY|C(?:Ô|ÔNG)|DOANH NGHIỆP)[^\n;.]{5,80})/i); if(mTen2) tenDn = mTen2[1].trim(); }
-      const mTY = t.match(/[Vv](?:\/v|ề)[:\s]*([^\n;]{10,200})/);
-      if(mTY) trichYeu = mTY[1].trim().substring(0, 200);
-      if(soVb) $('#rrSoVb', ct).value = soVb;
-      if(ngay) $('#rrNgay', ct).value = ngay;
-      if(donVi) $('#rrDonVi', ct).value = donVi;
-      if(mst) $('#rrMst', ct).value = mst;
-      if(tenDn) $('#rrTenDn', ct).value = tenDn;
-      if(trichYeu) $('#rrTrichYeu', ct).value = trichYeu;
-      const filled = [soVb, ngay, donVi, mst, tenDn].filter(Boolean).length;
+      const filled = ['soVb','ngay','donVi','mst','tenDn'].filter(k => ct._rrMeta[k]).length;
       if(ct._rrCos.length > 1) {
-        if(!mst && ct._rrCos[0]) { $('#rrMst', ct).value = ct._rrCos[0].mst; }
-        if(!tenDn && ct._rrCos[0] && ct._rrCos[0].ten) { $('#rrTenDn', ct).value = ct._rrCos[0].ten; }
-        extractMsg.innerHTML = '✅ Đã lấy ' + ct._rrCos.length + ' doanh nghiệp. Điền số văn bản, ngày, đơn vị, người upload rồi bấm Lưu.';
+        extractMsg.innerHTML = '✅ Đã lấy ' + ct._rrCos.length + ' doanh nghiệp. Điền người upload rồi bấm Lưu.';
         extractMsg.style.color = '#2e7d32';
       } else if(filled === 0 && !ct._rrCos.length) {
-        extractMsg.innerHTML = '⚠️ Không nhận diện được thông tin. Vui lòng nhập tay.';
+        extractMsg.innerHTML = '⚠️ Không nhận được thông tin trong file.';
         extractMsg.style.color = '#e65100';
       } else {
-        extractMsg.innerHTML = '✅ Đã trích xuất ' + Math.max(filled, ct._rrCos.length) + ' mục. Kiểm tra và bổ sung nếu cần.';
+        extractMsg.innerHTML = '✅ Đã lấy ' + Math.max(filled, ct._rrCos.length) + ' mục từ file. Điền người upload rồi bấm Lưu.';
         extractMsg.style.color = '#2e7d32';
       }
     } catch(e) {
-      extractMsg.innerHTML = '⚠️ Không trích xuất được (' + e.message + '). Vui lòng nhập tay.';
+      extractMsg.innerHTML = '⚠️ Không đọc được file (' + e.message + ').';
       extractMsg.style.color = '#e65100';
     }
   });
 
   $('#rrSaveVb', ct).addEventListener('click', async () => {
-    const soVb = $('#rrSoVb', ct).value.trim();
-    const ngay = $('#rrNgay', ct).value;
-    const donVi = $('#rrDonVi', ct).value.trim();
-    const mst = $('#rrMst', ct).value.trim();
-    const tenDn = $('#rrTenDn', ct).value.trim();
-    const trichYeu = $('#rrTrichYeu', ct).value.trim();
+    const meta = ct._rrMeta || {};
+    const soVb = String(meta.soVb || '').trim();
+    const ngay = String(meta.ngay || '').trim();
+    const donVi = String(meta.donVi || '').trim();
+    const mst = String(meta.mst || '').trim();
+    const tenDn = String(meta.tenDn || '').trim();
+    const trichYeu = String(meta.trichYeu || '').trim();
     const nguoiUp = $('#rrNguoiUp', ct).value.trim();
     const msg = $('#rrUpMsg', ct);
 
     const list = (ct._rrCos || []).filter(c => c.mst);
-    const many = list.length > 1;
-    if(!soVb || !ngay || !donVi || !nguoiUp || (!many && (!mst || !tenDn))) {
-      msg.innerHTML = '<p style="color:#d32f2f">' + (many ? 'Điền số văn bản, ngày, đơn vị và người upload. Danh sách doanh nghiệp đã lấy từ file.' : 'Vui lòng điền đầy đủ các trường có dấu *.') + '</p>';
+    if(!nguoiUp) {
+      msg.innerHTML = '<p style="color:#d32f2f">Điền tên người upload.</p>';
+      return;
+    }
+    if(!soVb || !ngay || !donVi || (!list.length && (!mst || !tenDn))) {
+      msg.innerHTML = '<p style="color:#d32f2f">File không có đủ số văn bản, ngày ban hành, đơn vị' + (list.length ? '' : ', MST hoặc tên doanh nghiệp') + '.</p>';
       return;
     }
 
-    const rows = many ? list : [{mst: rrNormMstUp(mst) || mst, ten: tenDn}];
+    const rows = list.length ? list : [{mst: rrNormMstUp(mst) || mst, ten: tenDn}];
     const dbChk = rrLocalDB();
     const fresh = rows.filter(c => !dbChk.vanban.some(v => v.so_van_ban === soVb && String(v.mst_dn) === String(c.mst)));
     if(!fresh.length) {
@@ -5109,12 +5091,22 @@ function rrTabUpload(ct) {
     rrSaveLocal(db);
     if(RUIRO_SCRIPT_URL) saved.forEach(vb => rrPost({action:'uploadVanBan', ...vb}).catch(() => {}));
     ct._rrCos = [];
+    ct._rrMeta = {soVb:'', ngay:'', donVi:'', mst:'', tenDn:'', trichYeu:''};
     rrShowExtracted(ct, []);
 
     const skipped = rows.length - fresh.length;
     msg.innerHTML = '<p style="color:#2e7d32">✅ Đã lưu <b>' + fresh.length + '</b> doanh nghiệp của văn bản <b>' + esc(soVb) + '</b>.' + (skipped ? ' Bỏ qua ' + skipped + ' MST đã có.' : '') + '</p>';
-    ['rrSoVb','rrNgay','rrDonVi','rrMst','rrTenDn','rrTrichYeu','rrNguoiUp'].forEach(id => { const el = $('#' + id, ct); if(el) el.value = ''; });
+    const nguoi = $('#rrNguoiUp', ct);
+    if (nguoi) nguoi.value = '';
   });
+}
+function rrApplyMeta(ct) {
+  const meta = ct._rrMeta || {};
+  if (ct._rrCos && ct._rrCos.length > 1) {
+    if (!meta.mst && ct._rrCos[0]) meta.mst = ct._rrCos[0].mst;
+    if (!meta.tenDn && ct._rrCos[0] && ct._rrCos[0].ten) meta.tenDn = ct._rrCos[0].ten;
+  }
+  ct._rrMeta = meta;
 }
 
 function rrTabInvoices(ct) {
