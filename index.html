@@ -4459,33 +4459,66 @@ function rrPublicHref(url) {
   const base = location.pathname.replace(/[^/]*$/, '');
   return base + String(url).replace(/^\//, '');
 }
+function rrCloseView() {
+  const box = document.getElementById('rrViewBox');
+  if (!box) return;
+  box._rrToken = (box._rrToken || 0) + 1;
+  box.style.display = 'none';
+  const pages = document.getElementById('rrViewPages');
+  if (pages) pages.innerHTML = '';
+}
 function rrOpenView(url) {
   if (!url) return;
   let abs = url;
   try { abs = new URL(url, location.href).href; } catch (e) {}
+  abs = abs.split('#')[0];
   const same = abs.indexOf(location.origin) === 0;
-  const src = abs + (abs.indexOf('#') < 0 ? '#' : '&') + 'toolbar=0&navpanes=0';
   if (!same) {
-    window.open(src, '_blank', 'noopener');
+    window.open(abs, '_blank', 'noopener');
     return;
   }
   let box = document.getElementById('rrViewBox');
   if (!box) {
     box = document.createElement('div');
     box.id = 'rrViewBox';
-    box.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);display:flex;flex-direction:column;padding:16px';
-    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:#fff"><b>Xem bản gốc</b><button type="button" id="rrViewClose" class="btn sm">Đóng</button></div><iframe id="rrViewFrame" title="Xem bản gốc" style="flex:1;width:100%;border:0;background:#fff;border-radius:8px"></iframe>';
+    box.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0f172a;display:flex;flex-direction:column;padding:12px';
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;color:#fff"><b>Xem bản gốc</b><button type="button" id="rrViewClose" style="height:34px;padding:0 14px;border:0;border-radius:8px;background:#fff;color:#111;font-weight:700;cursor:pointer">Đóng</button></div><div id="rrViewPages" style="flex:1;overflow:auto;background:#525659;border-radius:8px;padding:12px"></div>';
     document.body.appendChild(box);
     box.addEventListener('click', function (e) {
-      if (e.target === box || e.target.id === 'rrViewClose') {
-        box.style.display = 'none';
-        const frame = document.getElementById('rrViewFrame');
-        if (frame) frame.src = 'about:blank';
-      }
+      if (e.target === box || e.target.id === 'rrViewClose') rrCloseView();
     });
   }
-  document.getElementById('rrViewFrame').src = src;
   box.style.display = 'flex';
+  const pages = document.getElementById('rrViewPages');
+  pages.innerHTML = '<p style="color:#fff;text-align:center;margin:24px 0">Đang mở bản gốc...</p>';
+  const token = (box._rrToken = (box._rrToken || 0) + 1);
+  if (!window.pdfjsLib) {
+    pages.innerHTML = '<p style="color:#fff;text-align:center;margin:24px 0">Chưa tải được bộ xem. Tải lại trang rồi bấm Xem.</p>';
+    return;
+  }
+  fetch(abs).then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.arrayBuffer();
+  }).then(buf => pdfjsLib.getDocument({data: buf}).promise).then(async pdf => {
+    if (box._rrToken !== token) return;
+    pages.innerHTML = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (box._rrToken !== token || box.style.display === 'none') return;
+      const page = await pdf.getPage(i);
+      const base = page.getViewport({scale: 1});
+      const width = Math.max(280, Math.min(pages.clientWidth - 24, 980));
+      const view = page.getViewport({scale: width / base.width});
+      const canvas = document.createElement('canvas');
+      canvas.width = view.width;
+      canvas.height = view.height;
+      canvas.style.cssText = 'display:block;margin:0 auto 12px;max-width:100%;height:auto;background:#fff';
+      pages.appendChild(canvas);
+      await page.render({canvasContext: canvas.getContext('2d'), viewport: view}).promise;
+    }
+  }).catch(() => {
+    if (box._rrToken !== token) return;
+    pages.innerHTML = '<p style="color:#fff;text-align:center;margin:24px 0">Không mở được bản gốc.</p>';
+  });
 }
 function rrFileLink(url) {
   if (!url) return '';
