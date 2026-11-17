@@ -4425,9 +4425,65 @@ function rrHit(q, parts) {
   const s = parts.filter(Boolean).join('|').toUpperCase();
   return s.includes(qu) || (qAlt && s.includes(qAlt));
 }
+function rrLooksKyHieu(s) {
+  const t = String(s || '').trim();
+  return /^[A-Z0-9]{5,12}$/i.test(t) && /[A-Za-z]/.test(t);
+}
+function rrLooksIsoDate(s) {
+  return /^\d{4}-\d{2}-\d{2}(T|\s)/.test(String(s || '').trim());
+}
+function rrLooksMstVal(s) {
+  const d = String(s == null ? '' : s).replace(/\D/g, '');
+  return d.length === 10 || d.length === 13 || d.length === 14;
+}
+/** Sửa hóa đơn bị lệch cột khi dán từ HDDT (STT + cột thừa). */
+function rrNormHoaDon(h) {
+  if (!h || typeof h !== 'object') return h;
+  const ngay = h.ngay_hoa_don != null ? h.ngay_hoa_don : h.ngay;
+  const tenBan = h.ten_ban;
+  const diaChi = h.dia_chi_mua != null ? h.dia_chi_mua : h.dia_chi;
+  const tien = h.tien_chua_thue != null ? h.tien_chua_thue : h.tien;
+  if (rrLooksKyHieu(ngay) && rrLooksIsoDate(tenBan) && rrLooksMstVal(diaChi)) {
+    return {
+      ma_vb: h.ma_vb,
+      ky_hieu_hd: String(ngay).trim(),
+      so_hoa_don: String(h.mst_ban != null ? h.mst_ban : (h.so_hoa_don || h.so_hd || '')).trim(),
+      ngay_hoa_don: String(tenBan).trim(),
+      mst_ban: String(diaChi).replace(/\D/g, ''),
+      ten_ban: String(tien || '').trim(),
+      mst_mua: String(h.mst_mua != null ? h.mst_mua : '').replace(/\D/g, ''),
+      ten_mua: String(h.ten_mua || '').trim(),
+      dia_chi_mua: String(h.thue || '').trim(),
+      tong_tien: h.tong_tien != null ? h.tong_tien : (h.tong || '')
+    };
+  }
+  return {
+    ma_vb: h.ma_vb,
+    ky_hieu_hd: String(h.ky_hieu_hd != null ? h.ky_hieu_hd : (h.ky_hieu || '')).trim(),
+    so_hoa_don: String(h.so_hoa_don != null ? h.so_hoa_don : (h.so_hd || '')).trim(),
+    ngay_hoa_don: ngay != null ? String(ngay).trim() : '',
+    mst_ban: String(h.mst_ban != null ? h.mst_ban : '').replace(/\D/g, ''),
+    ten_ban: String(h.ten_ban || '').trim(),
+    mst_mua: String(h.mst_mua != null ? h.mst_mua : '').replace(/\D/g, ''),
+    ten_mua: String(h.ten_mua || '').trim(),
+    dia_chi_mua: String(diaChi || '').trim(),
+    tong_tien: h.tong_tien != null ? h.tong_tien : (h.tong || '')
+  };
+}
+function rrNormVanBan(v) {
+  if (!v || typeof v !== 'object') return v;
+  const ten = String(v.ten_dn || '').trim();
+  const junk = !ten || /^[-–]?\s*mã số thuế/i.test(ten) || ten === ';';
+  return Object.assign({}, v, {
+    mst_dn: rrFmtMST(v.mst_dn),
+    ten_dn: junk ? '' : ten,
+    don_vi_ban_hanh: v.don_vi_ban_hanh || v.don_vi || '',
+    ngay_ban_hanh: v.ngay_ban_hanh || v.ngay || ''
+  });
+}
 function rrCollect(data, q) {
-  const rows = (data && data.vanban) || [];
-  const bills = (data && data.hoadon) || [];
+  const rows = ((data && data.vanban) || []).map(rrNormVanBan);
+  const bills = ((data && data.hoadon) || []).map(rrNormHoaDon);
   return {
     vanban: rows.filter(v => rrHit(q, [v.so_van_ban, v.mst_dn, v.ten_dn, v.don_vi_ban_hanh, v.trich_yeu, v.ma_vb])),
     hoadon: bills.filter(h => rrHit(q, [h.ky_hieu_hd, h.so_hoa_don, h.mst_ban, h.ten_ban, h.mst_mua, h.ten_mua]))
@@ -4436,8 +4492,8 @@ function rrCollect(data, q) {
 function rrLocalHits(q) {
   const db = rrLocalDB();
   return {
-    vanban: db.vanban.filter(v => rrHit(q, [v.so_van_ban, v.mst_dn, v.ten_dn, v.don_vi, v.don_vi_ban_hanh, v.trich_yeu])),
-    hoadon: db.hoadon.filter(h => rrHit(q, [h.ky_hieu_hd, h.so_hoa_don, h.mst_ban, h.ten_ban, h.mst_mua, h.ten_mua]))
+    vanban: db.vanban.map(rrNormVanBan).filter(v => rrHit(q, [v.so_van_ban, v.mst_dn, v.ten_dn, v.don_vi, v.don_vi_ban_hanh, v.trich_yeu])),
+    hoadon: db.hoadon.map(rrNormHoaDon).filter(h => rrHit(q, [h.ky_hieu_hd, h.so_hoa_don, h.mst_ban, h.ten_ban, h.mst_mua, h.ten_mua]))
   };
 }
 function rrMerge() {
@@ -4445,13 +4501,26 @@ function rrMerge() {
   const out = [];
   Array.from(arguments).forEach(list => {
     (list || []).forEach(row => {
-      const key = row.ma_vb || [row.mst_dn, row.so_van_ban, row.ten_dn, row.so_hoa_don, row.ky_hieu_hd].join('|');
+      const isHd = row && (row.ky_hieu_hd != null || row.ky_hieu != null || row.so_hoa_don != null || row.so_hd != null || row.mst_ban != null || row.mst_mua != null) && !row.so_van_ban;
+      const key = isHd
+        ? ['hd', row.ma_vb || '', row.ky_hieu_hd || row.ky_hieu || '', row.so_hoa_don || row.so_hd || '', row.mst_ban || '', row.mst_mua || '', row.ngay_hoa_don || row.ngay || '', row.tong_tien || row.tong || ''].join('|')
+        : (row.ma_vb || [row.mst_dn, row.so_van_ban, row.ten_dn].join('|'));
       if (seen.has(key)) return;
       seen.add(key);
       out.push(row);
     });
   });
   return out;
+}
+function rrFillTenFromHd(vanban, hoadon) {
+  (vanban || []).forEach(v => {
+    if (v.ten_dn || !v.mst_dn) return;
+    const m = String(v.mst_dn).replace(/\D/g, '');
+    const hit = (hoadon || []).find(h => String(h.mst_mua || '').replace(/\D/g, '') === m || String(h.mst_ban || '').replace(/\D/g, '') === m);
+    if (!hit) return;
+    v.ten_dn = String(hit.mst_mua || '').replace(/\D/g, '') === m ? (hit.ten_mua || '') : (hit.ten_ban || '');
+  });
+  return vanban;
 }
 function rrPublicHref(url) {
   if (!url) return '';
@@ -4652,12 +4721,18 @@ function rrTabSearch(ct) {
     const staticP = rrLoadStatic().then(d => rrCollect(d, q)).catch(() => ({vanban: [], hoadon: []}));
     const apiQ = /^\d+$/.test(q) ? q.replace(/^0+/, '') : q;
     const apiP = RUIRO_SCRIPT_URL
-      ? rrApi('search', {q: apiQ}).then(r => r && r.error ? {vanban: [], hoadon: [], error: r.error} : {vanban: (r && r.vanban) || [], hoadon: (r && r.hoadon) || []}).catch(e => ({vanban: [], hoadon: [], error: e.message}))
+      ? rrApi('search', {q: apiQ}).then(r => {
+          if (r && r.error) return {vanban: [], hoadon: [], error: r.error};
+          return {
+            vanban: ((r && r.vanban) || []).map(rrNormVanBan),
+            hoadon: ((r && r.hoadon) || []).map(rrNormHoaDon)
+          };
+        }).catch(e => ({vanban: [], hoadon: [], error: e.message}))
       : Promise.resolve({vanban: [], hoadon: []});
     Promise.all([staticP, apiP]).then(([st, api]) => {
       const local = rrLocalHits(q);
-      const vb = rrMerge(st.vanban, api.vanban, local.vanban);
       const hd = rrMerge(st.hoadon, api.hoadon, local.hoadon);
+      const vb = rrFillTenFromHd(rrMerge(st.vanban, api.vanban, local.vanban), hd);
       if(vb.length || hd.length) {
         rrRenderResults(res, vb.slice(0, 80), hd.slice(0, 80), q);
         if(vb.length > 80 || hd.length > 80) res.insertAdjacentHTML('beforeend', '<p class="muted">Hiển thị 80 kết quả đầu. Nhập MST hoặc tên đầy đủ hơn để thu hẹp.</p>');
@@ -4769,8 +4844,8 @@ function rrTabCrossCheck(ct) {
     $('#rrCcResult', ct).innerHTML = '<p>⏳ Đang đối chiếu...</p>';
     rrLoadStatic().catch(() => ({vanban: [], hoadon: []})).then(data => {
       const db = rrLocalDB();
-      const vanban = rrMerge((data && data.vanban) || [], db.vanban);
-      const hoadon = rrMerge((data && data.hoadon) || [], db.hoadon);
+      const vanban = rrMerge(((data && data.vanban) || []).map(rrNormVanBan), db.vanban.map(rrNormVanBan));
+      const hoadon = rrMerge(((data && data.hoadon) || []).map(rrNormHoaDon), db.hoadon.map(rrNormHoaDon));
       const results = [];
       lines.forEach(code => {
         const matchVb = vanban.filter(v => v.mst_dn && String(v.mst_dn).toUpperCase().includes(code));
@@ -5256,13 +5331,21 @@ function rrTabInvoices(ct) {
     if(!raw) return [];
     return raw.split('\n').map(line => {
       const parts = line.includes('\t') ? line.split('\t') : line.split('|');
-      const p = parts.map(s => s.trim());
-      return {
+      let p = parts.map(s => s.trim()).filter((s, i, arr) => !(i === arr.length - 1 && s === ''));
+      // HDDT hay dán: STT | (cột thừa) | Ký hiệu | Số | Ngày | MST mua | Tên mua | MST bán | Tên bán | Địa chỉ | Tổng
+      if (p.length >= 10 && /^\d{1,5}$/.test(p[0]) && rrLooksKyHieu(p[2]) && (rrLooksIsoDate(p[4]) || /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(p[4]))) {
+        p = [p[2], p[3], p[4], p[7], p[8], p[5], p[6], p[9], '', '', p[10] || p[p.length - 1] || ''];
+      } else if (p.length >= 9 && /^\d{1,5}$/.test(p[0]) && rrLooksKyHieu(p[1])) {
+        // STT | Ký hiệu | Số | Ngày | MST bán | Tên bán | MST mua | Tên mua | ...
+        p = p.slice(1);
+      }
+      const row = {
         ky_hieu_hd: p[0] || '', so_hoa_don: p[1] || '', ngay_hoa_don: p[2] || '',
         mst_ban: p[3] || '', ten_ban: p[4] || '', mst_mua: p[5] || '',
         ten_mua: p[6] || '', dia_chi_mua: p[7] || '',
         tien_chua_thue: p[8] || '', thue: p[9] || '', tong_tien: p[10] || ''
       };
+      return rrNormHoaDon(row);
     }).filter(r => r.mst_ban || r.mst_mua || r.so_hoa_don);
   }
 
@@ -5374,8 +5457,21 @@ function rrTabList(ct) {
   $$('.rr-approve', ct).forEach(btn => btn.addEventListener('click', () => {
     const idx = parseInt(btn.dataset.idx);
     const db = rrLocalDB();
-    db.vanban[idx].trang_thai = 'da_duyet';
+    const vb = db.vanban[idx];
+    vb.trang_thai = 'da_duyet';
+    // Chuẩn hóa hóa đơn lệch cột trước khi đẩy lại lên sheet chung
+    db.hoadon = (db.hoadon || []).map(h => h.ma_vb === vb.ma_vb ? Object.assign({ma_vb: vb.ma_vb}, rrNormHoaDon(h)) : h);
+    if (!vb.ten_dn || /^[-–]?\s*mã số thuế/i.test(String(vb.ten_dn))) {
+      const hit = db.hoadon.find(h => h.ma_vb === vb.ma_vb && (String(h.mst_mua) === String(vb.mst_dn) || String(h.mst_ban) === String(vb.mst_dn)));
+      if (hit) vb.ten_dn = String(hit.mst_mua) === String(vb.mst_dn) ? (hit.ten_mua || '') : (hit.ten_ban || '');
+    }
     rrSaveLocal(db);
+    if (RUIRO_SCRIPT_URL) {
+      rrPost({action: 'uploadVanBan', ...vb, trang_thai: 'da_duyet'}).catch(() => {});
+      const rows = db.hoadon.filter(h => h.ma_vb === vb.ma_vb);
+      if (rows.length) rrPost({action: 'uploadHoaDon', ma_vb: vb.ma_vb, rows}).catch(() => {});
+    }
+    alert('Đã duyệt. Tra cứu MST trên mọi máy sẽ thấy (sau khi sheet cập nhật).');
     rrTabList(ct);
   }));
 
