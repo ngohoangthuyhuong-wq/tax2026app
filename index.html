@@ -107,8 +107,7 @@ h2.sec{font-family:var(--serif);font-size:1.3rem;color:var(--ink);margin:34px 0 
 h3{font-size:1.02rem;margin:0 0 8px}
 .muted{color:var(--muted)}
 .small{font-size:.86rem}
-.disclaimer{margin:0 0 18px;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--ink-2);border-radius:8px;background:var(--surface);color:var(--muted);font-size:.88rem;line-height:1.55;max-width:78ch}
-.disclaimer b{color:var(--ink);font-weight:650}
+.internal-banner{margin:0;padding:16px 20px;background:#fff1f0;color:#c62828;text-align:center;font-size:1.45rem;font-weight:800;line-height:1.4;border-bottom:3px solid #c62828}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
 .foot{padding:18px 34px;border-top:1px solid var(--line);color:var(--muted);font-size:.86rem;display:flex;gap:16px;flex-wrap:wrap;background:var(--surface)}
 .foot b{color:var(--seal);font-family:var(--serif)}
@@ -1150,6 +1149,7 @@ kbd{display:inline-block;min-width:1.6em;padding:1px 6px;border:1px solid var(--
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
+<p class="internal-banner">Chỉ lưu hành nội bộ. Công chức nào chia sẻ link ra ngoài ngành tự chịu trách nhiệm.</p>
 <header class="top">
   <button class="burger" id="burger" aria-label="Mở menu">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -4540,7 +4540,15 @@ function rrPost(data) {
     });
 }
 function rrLocalDB() {
-  return JSON.parse(localStorage.getItem('smarttax_ruiro_db') || '{"vanban":[],"hoadon":[]}');
+  const db = JSON.parse(localStorage.getItem('smarttax_ruiro_db') || '{"vanban":[],"hoadon":[]}');
+  const isTest = v => /test\s*upload/i.test((v.ten_dn || '') + ' ' + (v.nguoi_upload || '')) || String(v.mst_dn || '') === '0316584321';
+  const drop = new Set((db.vanban || []).filter(isTest).map(v => v.ma_vb));
+  if (drop.size) {
+    db.vanban = db.vanban.filter(v => !drop.has(v.ma_vb));
+    db.hoadon = (db.hoadon || []).filter(h => !drop.has(h.ma_vb));
+    localStorage.setItem('smarttax_ruiro_db', JSON.stringify(db));
+  }
+  return db;
 }
 function rrSaveLocal(db) {
   localStorage.setItem('smarttax_ruiro_db', JSON.stringify(db));
@@ -4554,8 +4562,6 @@ function renderRuiRo(main) {
     <h1>Tra cứu hóa đơn rủi ro</h1>
     <p>Tra cứu doanh nghiệp có dấu hiệu rủi ro về hóa đơn, thuế. Dữ liệu do cộng đồng đóng góp.</p>
   </div></div>
-  <p class="disclaimer"><b>Chỉ lưu hành nội bộ.</b> Công chức nào chia sẻ link ra ngoài ngành tự chịu trách nhiệm.</p>
-
   <div class="rr-tabs" style="display:flex;gap:8px;margin:0 0 20px;flex-wrap:wrap">
     <button class="btn primary rr-tab on" data-tab="search" type="button">🔍 Tra cứu</button>
     <button class="btn rr-tab" data-tab="crosscheck" type="button">🔄 Đối chiếu chéo</button>
