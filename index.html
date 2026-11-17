@@ -4566,7 +4566,6 @@ function renderRuiRo(main) {
     <button class="btn primary rr-tab on" data-tab="search" type="button">🔍 Tra cứu</button>
     <button class="btn rr-tab" data-tab="crosscheck" type="button">🔄 Đối chiếu chéo</button>
     <button class="btn rr-tab" data-tab="upload" type="button">📤 Upload văn bản</button>
-    <button class="btn rr-tab" data-tab="invoices" type="button">📋 Nhập hóa đơn</button>
     <button class="btn rr-tab" data-tab="list" type="button">📂 DS văn bản (${db.vanban.length})</button>
   </div>
 
@@ -4593,7 +4592,6 @@ function rrShowTab(tab, main) {
     case 'search': rrTabSearch(ct); break;
     case 'crosscheck': rrTabCrossCheck(ct); break;
     case 'upload': rrTabUpload(ct); break;
-    case 'invoices': rrTabInvoices(ct); break;
     case 'list': rrTabList(ct); break;
   }
 }
@@ -5107,88 +5105,6 @@ function rrApplyMeta(ct) {
     if (!meta.tenDn && ct._rrCos[0] && ct._rrCos[0].ten) meta.tenDn = ct._rrCos[0].ten;
   }
   ct._rrMeta = meta;
-}
-
-function rrTabInvoices(ct) {
-  const db = rrLocalDB();
-  const vbOpts = db.vanban.map(v => `<option value="${esc(v.ma_vb)}">${esc(v.so_van_ban)} — ${esc(v.ten_dn)} (${esc(v.mst_dn)})</option>`).join('');
-
-  ct.innerHTML = `
-<div class="card" style="padding:20px;border-radius:12px;border:1px solid var(--brd);background:var(--card)">
-  <h3 style="margin:0 0 8px;font-size:1.1rem">📋 Nhập danh sách hóa đơn</h3>
-  <p style="font-size:.9rem;color:#666;margin:0 0 12px">Nhập danh sách hóa đơn điện tử từ văn bản cảnh báo. Dán dữ liệu từ Excel hoặc nhập thủ công.</p>
-
-  <div style="margin-bottom:12px">
-    <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Chọn văn bản gốc *</label>
-    <select id="rrHdVb" style="width:100%;padding:8px 10px;border:1.5px solid var(--brd);border-radius:8px">
-      <option value="">— Chọn văn bản đã upload —</option>
-      ${vbOpts}
-    </select>
-    ${!vbOpts ? '<p style="font-size:.85rem;color:#e65100;margin:4px 0 0">Chưa có văn bản nào. Hãy upload văn bản trước.</p>' : ''}
-  </div>
-
-  <div style="margin-bottom:12px">
-    <label style="font-size:.85rem;font-weight:600;display:block;margin-bottom:4px">Dán dữ liệu hóa đơn (Tab-separated hoặc phân cách bằng |)</label>
-    <p style="font-size:.8rem;color:#888;margin:0 0 6px">Thứ tự cột: Ký hiệu HĐ | Số HĐ | Ngày HĐ | MST bán | Tên bán | MST mua | Tên mua | Địa chỉ mua | Tiền chưa thuế | Thuế | Tổng tiền</p>
-    <textarea id="rrHdData" rows="8" placeholder="C24TYY&#9;1284&#9;22/12/2024&#9;0110817852&#9;CÔNG TY TNHH ITCVN&#9;3301236681&#9;CÔNG TY TNHH ABC&#9;TP.HCM&#9;1,000,000&#9;100,000&#9;1,100,000" style="width:100%;padding:10px;border:1.5px solid var(--brd);border-radius:8px;font-family:monospace;font-size:.8rem;box-sizing:border-box;resize:vertical"></textarea>
-  </div>
-
-  <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <button id="rrParseBtn" class="btn" type="button">👁️ Xem trước</button>
-    <button id="rrSaveHd" class="btn primary" type="button">💾 Lưu hóa đơn</button>
-  </div>
-  <div id="rrHdPreview" style="margin-top:12px"></div>
-  <div id="rrHdMsg" style="margin-top:10px"></div>
-</div>`;
-
-  function parseRows() {
-    const raw = $('#rrHdData', ct).value.trim();
-    if(!raw) return [];
-    return raw.split('\n').map(line => {
-      const parts = line.includes('\t') ? line.split('\t') : line.split('|');
-      const p = parts.map(s => s.trim());
-      return {
-        ky_hieu_hd: p[0] || '', so_hoa_don: p[1] || '', ngay_hoa_don: p[2] || '',
-        mst_ban: p[3] || '', ten_ban: p[4] || '', mst_mua: p[5] || '',
-        ten_mua: p[6] || '', dia_chi_mua: p[7] || '',
-        tien_chua_thue: p[8] || '', thue: p[9] || '', tong_tien: p[10] || ''
-      };
-    }).filter(r => r.mst_ban || r.mst_mua || r.so_hoa_don);
-  }
-
-  $('#rrParseBtn', ct).addEventListener('click', () => {
-    const rows = parseRows();
-    const preview = $('#rrHdPreview', ct);
-    if(!rows.length) { preview.innerHTML = '<p class="muted">Không có dữ liệu hợp lệ.</p>'; return; }
-    let html = '<p style="font-size:.9rem;font-weight:600">' + rows.length + ' dòng hóa đơn:</p>';
-    html += '<div style="overflow-x:auto;max-height:300px;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:.8rem">';
-    html += '<thead><tr style="background:#e3f2fd;position:sticky;top:0"><th style="padding:6px">Ký hiệu</th><th style="padding:6px">Số HĐ</th><th style="padding:6px">Ngày</th><th style="padding:6px">MST bán</th><th style="padding:6px">Tên bán</th><th style="padding:6px">MST mua</th><th style="padding:6px">Tên mua</th><th style="padding:6px;text-align:right">Tổng tiền</th></tr></thead><tbody>';
-    rows.forEach((r, i) => {
-      html += `<tr style="background:${i % 2 ? '#f5f5f5' : '#fff'}"><td style="padding:4px 6px">${esc(r.ky_hieu_hd)}</td><td style="padding:4px 6px">${esc(r.so_hoa_don)}</td><td style="padding:4px 6px">${esc(r.ngay_hoa_don)}</td><td style="padding:4px 6px"><code>${esc(r.mst_ban)}</code></td><td style="padding:4px 6px">${esc(r.ten_ban)}</td><td style="padding:4px 6px"><code>${esc(r.mst_mua)}</code></td><td style="padding:4px 6px">${esc(r.ten_mua)}</td><td style="padding:4px 6px;text-align:right">${esc(r.tong_tien)}</td></tr>`;
-    });
-    html += '</tbody></table></div>';
-    preview.innerHTML = html;
-  });
-
-  $('#rrSaveHd', ct).addEventListener('click', () => {
-    const maVb = $('#rrHdVb', ct).value;
-    const msg = $('#rrHdMsg', ct);
-    if(!maVb) { msg.innerHTML = '<p style="color:#d32f2f">Chọn văn bản gốc trước.</p>'; return; }
-    const rows = parseRows();
-    if(!rows.length) { msg.innerHTML = '<p style="color:#d32f2f">Chưa có dữ liệu hóa đơn.</p>'; return; }
-
-    const db = rrLocalDB();
-    rows.forEach(r => { r.ma_vb = maVb; db.hoadon.push(r); });
-    rrSaveLocal(db);
-
-    if(RUIRO_SCRIPT_URL) {
-      rrPost({action:'uploadHoaDon', ma_vb: maVb, rows}).catch(() => {});
-    }
-
-    msg.innerHTML = '<p style="color:#2e7d32">✅ Đã lưu <b>' + rows.length + '</b> hóa đơn. Tổng dữ liệu: ' + db.hoadon.length + ' hóa đơn từ ' + db.vanban.length + ' văn bản.</p>';
-    $('#rrHdData', ct).value = '';
-    $('#rrHdPreview', ct).innerHTML = '';
-  });
 }
 
 function rrTabList(ct) {
